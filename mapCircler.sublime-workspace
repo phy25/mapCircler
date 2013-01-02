@@ -15,7 +15,7 @@
 			"file": "showmap.htm",
 			"settings":
 			{
-				"buffer_size": 11608,
+				"buffer_size": 12215,
 				"line_ending": "Windows"
 			}
 		}
@@ -94,15 +94,15 @@
 					"file": "showmap.htm",
 					"settings":
 					{
-						"buffer_size": 11608,
+						"buffer_size": 12215,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								6206,
-								6206
+								1614,
+								1614
 							]
 						],
 						"settings":
@@ -112,7 +112,7 @@
 							"translate_tabs_to_spaces": true
 						},
 						"translation.x": 0.0,
-						"translation.y": 4314.0,
+						"translation.y": 864.0,
 						"zoom_level": 1.0
 					},
 					"type": "text"
