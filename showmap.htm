@@ -18,7 +18,6 @@
 /*以下函数计算多边形的中心点，调用方法：Polygon.getBounds().getCenter()*/
 
 if (!google.maps.Polygon.prototype.getBounds) {
-
 ﻿  google.maps.Polygon.prototype.getBounds = function(latLng) {
 
 ﻿  ﻿  var bounds = new google.maps.LatLngBounds();
@@ -37,8 +36,7 @@ if (!google.maps.Polygon.prototype.getBounds) {
 }
 
 /*https://chart.googleapis.com/chart?chst=d_text_outline&chld=000000|20|l|000000|_|粤东信息大厦  做为maker显示*/
-var map;
-var infoWindow;
+var map, infoWindow;
 var jsonObj;
 
 var drawingPoly = false;
@@ -89,12 +87,12 @@ function initialize() {
   google.maps.event.addListener(drawingManager, 'polygoncomplete', function(poly) {
     drawingManager.setDrawingMode(null);
     poly.setEditable(true);
-    var infowindow = new google.maps.InfoWindow({content: '<form id="item_add"><p><label for="item_name">名称</label> <input type="text" id="item_name" required="required" /></p><p><label for="item_meta">备注</label> <textarea id="item_meta" style="height:100px;width:300px;"></textarea></p><p><input type="submit" value="确定" id="item_add_submit" /></p></form>', position: poly.getBounds().getCenter()});
-    google.maps.event.addListener(infowindow, 'closeclick', function(){
+    var addWindow = new google.maps.InfoWindow({content: '<form id="item_add"><p><label for="item_name">名称</label> <input type="text" id="item_name" required="required" /></p><p><label for="item_meta">备注</label> <textarea id="item_meta" style="height:100px;width:300px;"></textarea></p><p><input type="submit" value="确定" id="item_add_submit" /></p></form>', position: poly.getBounds().getCenter()});
+    google.maps.event.addListener(addWindow, 'closeclick', function(){
       poly.setMap(null);
       poly = null;
     });
-    infowindow.open(map);
+    addWindow.open(map);
     $('#item_add').bind('submit', function(){
       if(!$('#item_name').val()){
         alert('请输入名称。');
@@ -103,7 +101,7 @@ function initialize() {
       poly.zIndex = jsonObj.area.length; 
       jsonObj.area.push({"paths":poly.path, "mode":0,"info":$('#item_meta').val(),"name":$('#item_name').val()});
       google.maps.event.addListener(poly, 'click', editBlock);
-      infowindow.close();
+      addWindow.close();
   	  return false;
     });
 
