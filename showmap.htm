@@ -1,0 +1,400 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+	<meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+	<style type="text/css">
+		html { height: 100% }
+  		body { height: 100%; margin: 0px; padding: 0px }
+  		#map_shantou { height: 100% }
+	</style>
+
+	<script type="text/javascript"
+    		src="https://maps.google.com/maps/api/js?sensor=false&libraries=drawing">
+	</script>
+	<script type="text/javascript" src="jquery.min.js"></script>
+
+	<script type="text/javascript">
+
+/*以下函数计算多边形的中心点，调用方法：Polygon.getBounds().getCenter()*/
+
+if (!google.maps.Polygon.prototype.getBounds) {
+
+﻿  google.maps.Polygon.prototype.getBounds = function(latLng) {
+
+﻿  ﻿  var bounds = new google.maps.LatLngBounds();
+﻿  ﻿  var paths = this.getPaths();
+﻿  ﻿  var path;
+﻿  ﻿  
+﻿  ﻿  for (var p = 0; p < paths.getLength(); p++) {
+﻿  ﻿  ﻿  path = paths.getAt(p);
+﻿  ﻿  ﻿  for (var i = 0; i < path.getLength(); i++) {
+﻿  ﻿  ﻿  ﻿  bounds.extend(path.getAt(i));
+﻿  ﻿  ﻿  }
+﻿  ﻿  }
+
+﻿  ﻿  return bounds;
+﻿  }
+}
+
+/*https://chart.googleapis.com/chart?chst=d_text_outline&chld=000000|20|l|000000|_|粤东信息大厦  做为maker显示*/
+var map;
+var infoWindow;
+var jsonObj;
+
+var drawingPoly = false;
+var markers = [];
+var path;
+var poly;
+
+function initialize() {
+// json data input first
+    jsonObj = {
+"mode":[{"strokeColor":"#FF0000", "strokeOpacity":0.8, "strokeWeight": 2, "fillColor":"#FF0000", "fillOpacity": 0.35}],
+
+"area":[
+{"paths": [{"Lat":23.355258,"Lng":116.710652},
+           {"Lat":23.352138,"Lng":116.710639},
+           {"Lat":23.352412,"Lng":116.716227},
+           {"Lat":23.355317,"Lng":116.716077}],
+ "mode":0,"info":"this is first","name":"粤东信息"},
+
+{"paths": [{"Lat":23.3657258,"Lng":116.710652},
+           {"Lat":23.362138,"Lng":116.710639},
+           {"Lat":23.362412,"Lng":116.716227}],
+ "mode":0,"info":"this is second","name":"平东街"}
+]};
+
+  // Construct my map
+  var latlng = new google.maps.LatLng(23.352564,116.712881);  //point of Shantou information mall
+  var myOptions = {
+      zoom: 16,
+      center: latlng,
+      mapTypeId: google.maps.MapTypeId.ROADMAP
+    };
+  map = new google.maps.Map(document.getElementById("map_shantou"),myOptions);
+  // drawing tools on the map
+  var drawingManager = new google.maps.drawing.DrawingManager({
+    drawingMode: google.maps.drawing.OverlayType.POLYGON,
+    drawingControl: true,
+    drawingControlOptions: {
+      position: google.maps.ControlPosition.TOP_LEFT,
+      drawingModes: [
+      google.maps.drawing.OverlayType.POLYGON
+      ]},
+    polygonOptions:jsonObj.mode[0]
+    });
+  drawingManager.setMap(map);
+  drawingManager.setDrawingMode(null);
+
+  google.maps.event.addListener(drawingManager, 'polygoncomplete', function(poly) {
+    drawingManager.setDrawingMode(null);
+    poly.setEditable(true);
+    var infowindow = new google.maps.InfoWindow({content: '<form id="item_add"><p><label for="item_name">名称</label> <input type="text" id="item_name" required="required" /></p><p><label for="item_meta">备注</label> <textarea id="item_meta" style="height:100px;width:300px;"></textarea></p><p><input type="submit" value="确定" id="item_add_submit" /></p></form>', position: poly.getBounds().getCenter()});
+    google.maps.event.addListener(infowindow, 'closeclick', function(){
+      poly.setMap(null);
+      poly = null;
+    });
+    infowindow.open(map);
+    $('#item_add').bind('submit', function(){
+      if(!$('#item_name').val()){
+        alert('请输入名称。');
+        return false;
+      }
+      poly.zIndex = jsonObj.area.length; 
+      jsonObj.area.push({"paths":poly.path, "mode":0,"info":$('#item_meta').val(),"name":$('#item_name').val()});
+      google.maps.event.addListener(poly, 'click', editBlock);
+      infowindow.close();
+  	  return false;
+    });
+
+  });
+
+
+// Construct the polygon
+  // Note that we don't specify an array or arrays, but instead just
+  // a simple array of LatLngs in the paths property
+  for (var j = 0; j < jsonObj.area.length; j++) { 
+    var areaCoords=[];
+    for (var i =0; i < jsonObj.area[j].paths.length; i++) {
+      areaCoords.push(new google.maps.LatLng(jsonObj.area[j].paths[i].Lat,jsonObj.area[j].paths[i].Lng));
+    }
+    var Block = new google.maps.Polygon({
+      paths: areaCoords,
+      strokeColor: jsonObj.mode[jsonObj.area[j].mode].strokeColor,
+      strokeOpacity: jsonObj.mode[jsonObj.area[j].mode].strokeOpacity,
+      strokeWeight: jsonObj.mode[jsonObj.area[j].mode].strokeWeight,
+      fillColor: jsonObj.mode[jsonObj.area[j].mode].fillColor,
+      fillOpacity: jsonObj.mode[jsonObj.area[j].mode].fillOpactiy,
+      zIndex:j
+    });
+
+    Block.setMap(map);
+
+ // Add a listener for the click event
+    google.maps.event.addListener(Block, 'rightclick', editBlock);
+  }
+
+  google.maps.event.addListener(map, 'click', closePoly);
+  google.maps.event.addListener(map, 'rightclick', addPoint);
+    
+  infowindow = new google.maps.InfoWindow();
+//	var contextMenu = new ContextMenu(map);
+
+}
+
+
+
+
+function showMenu(event) {
+  
+  var contentString = 'Draw polygon by:<ul><li>Click map to add a Vertex<li>Drag marker to adjust<li>Click marker to delete vertex</ul><!--center><button onclick="closeWin()">OK</button></center-->';
+ 
+  // Replace our Info Window's content and position
+  infowindow.setContent(contentString);
+  infowindow.setPosition(event.latLng);
+
+  infowindow.open(map);
+}
+
+function closePoly(event)
+{
+  if (drawingPoly) {
+    drawingPoly = false;
+    poly.zIndex = jsonObj.area.length; 
+    jsonObj.area.push({"paths":path, "mode":0,"info":"this is other","name":"新地方"});
+    google.maps.event.addListener(poly, 'click', editBlock);
+
+    //remove maker
+    for (var i = 0, I = markers.length; i < I; i++) {
+      markers[i].setMap(null)
+    } 
+  }
+}
+
+function addPoint(event) 
+{
+    if (!drawingPoly) { 
+      drawingPoly = true;
+      path = new google.maps.MVCArray();
+      poly = new google.maps.Polygon({
+        strokeColor: jsonObj.mode[0].strokeColor, 
+        strokeOpacity: jsonObj.mode[0].strokeOpacity,      
+        fillOpacity: jsonObj.mode[0].fillOpacity ,
+        strokeWeight: jsonObj.mode[0].strokeWeight,
+        fillColor: jsonObj.mode[0].fillColor
+      });
+
+      markers = [];
+      poly.setPaths(path);
+      poly.setMap(map);
+     }
+
+  path.insertAt(path.length, event.latLng);  //画线
+  poly.setPaths(path);
+
+  var marker = new google.maps.Marker({
+    position: event.latLng,
+    map: map,
+    draggable: true
+  });
+
+  markers.push(marker);
+  marker.setTitle("#" + path.length);
+  
+  google.maps.event.addListener(marker, 'dragend', function(event) {
+    for (var i = 0, I = markers.length; i < I; i++) {
+      if (markers[i] == marker) {
+        path.setAt(i,event.latLng) //替换多边形顶点
+    //    poly.setPaths(path);
+        break;
+      }
+    }
+  });
+
+  google.maps.event.addListener(marker, 'click', function() {
+    marker.setMap(null);//删除点
+    for (var i = 0, I = markers.length; i < I; i++) {
+      if (markers[i] == marker) {
+        markers.splice(i, 1);
+        path.removeAt(i);  //删除多边形线路
+        break;
+      }
+    }
+  });
+
+}
+
+function editBlock(event) {
+  // Add markers on vertices of the Polygon Since this Polygon only has one path, we can call getPath()
+  // to return the MVCArray of LatLngs
+
+
+//  var contentString = "<b>"+ jsonObj.area[this.zIndex].name +"</b><br />";
+  
+  path = this.getPath();
+  markers = [];
+  
+  for (var i =0; i < path.length; i++) {
+    var marker = new google.maps.Marker({
+      position: path.getAt(i),
+      map: map,
+      draggable: true
+    });
+    markers.push(marker);  
+    marker.setTitle("#" + i);
+  
+    google.maps.event.addListener(marker, 'dragend', function(event) {
+      for (var i = 0, I = markers.length; i < I; i++) {
+        if (markers[i] == marker) {
+          path.setAt(i,event.latLng) //替换多边形顶点
+          break;
+        }
+      }
+    });
+
+    google.maps.event.addListener(marker, 'click', function() {
+      marker.setMap(null);//删除点
+      for (var i = 0, I = markers.length; i < I; i++) {
+        if (markers[i] == marker) {
+          markers.splice(i, 1);
+          path.removeAt(i);  //删除多边形线路
+          break;
+        }
+      }
+    });
+  };
+
+
+
+}
+
+
+
+
+
+function ContextMenu(oMap)
+{this.initialize(oMap);}
+
+//Construct the DOM tree of the menu
+ContextMenu.prototype.initLink = function(oMap){
+	var that=this;
+	a_link = document.createElement("li");
+	a_link.innerHTML="<a href='javascript:void(0);'>&raquo;增加区域  </a>";
+	google.maps.event.addListener(a_link, 'click', function() {
+		that.map.zoomIn();
+		that.contextmenu.style.display='none';
+	});
+	this.ul_container.appendChild(a_link);
+	
+	a_link = document.createElement("li");
+	a_link.innerHTML="<a href='javascript:void(0);'>&raquo;删除区域  </a>";
+	
+	google.maps.event.addListener(a_link, 'click', function() {
+		that.map.zoomOut();
+		that.contextmenu.style.display='none';
+	});
+	this.ul_container.appendChild(a_link);
+	
+	a_link = document.createElement("li");
+	a_link.innerHTML="<a href='javascript:void(0);'>&raquo;修改区域  </a>";
+	google.maps.event.addListener(a_link, 'click', function() {
+		var point = that.map.fromContainerPixelToLatLng(that.clickedPixel);
+		that.map.zoomIn(point,true);
+		that.contextmenu.style.display="none";
+	});
+	this.ul_container.appendChild(a_link);
+	
+	
+	a_link = document.createElement("li");
+	a_link.innerHTML="<a href='javascript:void(0);'>&raquo;Altitude  </a>";
+	this.activeLabel=null;
+	this.timer=null;
+//This will manage the request for the altitude: once the result will be shown on a TLabel, and will disappear after 7 seconds.
+	google.maps.event.addListener(a_link, 'click', function(){
+		var point = that.map.fromContainerPixelToLatLng(that.clickedPixel);
+		var url = 'get_altitude.php?alt_lat='+point.lat()+'&alt_lng='+point.lng();	
+		that.contextmenu.style.display="none";
+		GDownloadUrl(url, function(data, responseCode) {
+//This is the returned value if no data is available
+			if(data=="-32768"){
+				var retval = "N/A";
+			}else{
+				var retval = data + " m.";
+			}
+			if(that.activeLabel!=null || that.timer!=null){
+				map.removeTLabel(that.activeLabel);
+				window.clearTimeout(that.timer);
+				that.timer=null;
+			}	
+			var label = new TLabel();
+			label.id = 'tlabel_altezza';
+			label.anchorLatLng =point;
+			label.percentOpacity = 85;
+			label.content = '<div style="width:6em;font-weight:bold;border:1px solid blue;background:#E5ECF9;color:#3300FF;padding:4px;">'+retval+'</div>';
+			map.addTLabel(label);
+			var cb = that.bind(function(){map.removeTLabel(that.activeLabel);that.activeLabel=null;that.timer=null;});
+			that.timer=window.setTimeout(cb,7000);
+			that.activeLabel=label;
+		});
+	});
+	this.ul_container.appendChild(a_link);	
+}
+
+ContextMenu.prototype.bind = function(method) {
+	var self = this;
+	var opt_args = [].slice.call(arguments, 1);
+	return function() {
+		var args = opt_args.concat([].slice.call(arguments));
+		return method.apply(self, args);
+	}
+}
+
+//The object 'constructor'
+ContextMenu.prototype.initialize = function(oMap){
+	this.map = oMap;
+	var that=this;
+	
+	this.contextmenu = document.createElement("div");
+	this.contextmenu.style.display="none";
+//CSS class name of the menu
+	this.contextmenu.className="contextmenu";
+	this.ul_container = document.createElement("ul");
+	this.ul_container.id="context_menu_ul";
+	this.contextmenu.appendChild(this.ul_container);	
+	this.initLink();
+//	this.map.appendChild(this.contextmenu);	
+
+//Event listeners that will interact with our context menu
+    google.maps.event.addListener(oMap,"rightclick",function(pixel,tile) {
+		that.clickedPixel = pixel;
+		var x=pixel.x;
+		var y=pixel.y;
+//Prevents the menu to go out of the map margins, in this case the expected menu size is 150x110
+	//	if (x > that.map.getSize().width - 160) { x = that.map.getSize().width - 160 }
+	//	if (y >that.map.getSize().height - 120) { y = that.map.getSize().height - 120 }
+		var pos = new GControlPosition(G_ANCHOR_TOP_LEFT, new GSize(x,y));  
+		pos.apply(that.contextmenu);
+		that.contextmenu.style.display = "";
+	});	
+	google.maps.event.addListener(oMap, "move", function() {
+		that.contextmenu.style.display="none";
+	});
+	google.maps.event.addListener(oMap, "click", function(overlay,point) {
+		that.contextmenu.style.display="none";
+	});	
+}
+
+
+
+
+	</script>
+</head>
+
+
+
+<body onload="initialize()">
+  <div id="map_shantou" style="width:100%; height:100%"></div>
+  
+</body>
+
+</html>
