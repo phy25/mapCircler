@@ -35,6 +35,26 @@ if (!google.maps.Polygon.prototype.getBounds) {
 ﻿  }
 }
 
+
+function htmlEncode(str) {
+   var s = "";
+   if (str.length == 0) return "";
+   s = str.replace(/&/g, "&amp;");
+   s = s.replace(/</g, "&lt;");
+   s = s.replace(/>/g, "&gt;");  
+   s = s.replace(/\'/g, "&#39;");
+   s = s.replace(/\"/g, "&quot;");
+   return s;
+}
+
+function getzIndex(jsonObj,poly){
+  for (var i = 0; i < jsonObj.area.length; i++) {
+    if (poly.zIndex == jsonObj.area[i].zIndex) return i;
+  }
+  return null; 
+}
+
+
 /*https://chart.googleapis.com/chart?chst=d_text_outline&chld=000000|20|l|000000|_|粤东信息大厦  做为maker显示*/
 var map, infoWindow;
 var jsonObj;
@@ -54,12 +74,12 @@ function initialize() {
            {"Lat":23.352138,"Lng":116.710639},
            {"Lat":23.352412,"Lng":116.716227},
            {"Lat":23.355317,"Lng":116.716077}],
- "mode":0,"info":"this is first","name":"粤东信息大厦"},
+ "mode":0,"info":"this is first","name":"粤东信息大厦","zIndex":0},
 
 {"paths": [{"Lat":23.3657258,"Lng":116.710652},
            {"Lat":23.362138,"Lng":116.710639},
            {"Lat":23.362412,"Lng":116.716227}],
- "mode":0,"info":"this is second","name":"平东街"}
+ "mode":0,"info":"this is second","name":"平东街","zIndex":0}
 ]};
 
   // Construct my map
@@ -117,6 +137,7 @@ function initialize() {
     for (var i =0; i < jsonObj.area[j].paths.length; i++) {
       areaCoords.push(new google.maps.LatLng(jsonObj.area[j].paths[i].Lat,jsonObj.area[j].paths[i].Lng));
     }
+    jsonObj.area[j].zIndex = j;
     var Block = new google.maps.Polygon({
       paths: areaCoords,
       strokeColor: jsonObj.mode[jsonObj.area[j].mode].strokeColor,
@@ -144,19 +165,36 @@ function initialize() {
 // modify the Block: set the poly editable, open info, when done, replace info or dele the poly
 function editBlock(event) {
   event.stop();// 停止默认的放大行为的执行
-  // Add markers on vertices of the Polygon Since this Polygon only has one path, we can call getPath()
-  // to return the MVCArray of LatLngs
- 
-
 //  var contentString = "<b>"+ jsonObj.area[this.zIndex].name +"</b><br />";
   var poly = this;
-  poly.setEditable(true); 
-  var addWindow = new google.maps.InfoWindow({content: '<form id="item_add"><p><label for="item_name">名称</label> <input type="text" id="item_name" required="required" /></p><p><label for="item_meta">备注</label> <textarea id="item_meta" style="height:100px;width:300px;"></textarea></p><p><input type="submit" value="确定" id="item_add_submit" /></p></form>', position: poly.getBounds().getCenter()});
+  var jsonObjindex = getzIndex(jsonObj,poly);
+  poly.setEditable(true);
+  var addWindow = new google.maps.InfoWindow({content: '<form id="item_add"><p><label for="item_name">名称</label> <input type="text" id="item_name" required="required" value="'+htmlEncode(jsonObj.area[jsonObjindex].name)+'" /></p><p><label for="item_meta">备注</label> <textarea id="item_meta" style="height:100px;width:300px;">'+htmlEncode(jsonObj.area[jsonObjindex].info)+'</textarea></p><p><input type="submit" value="确定" id="item_add_submit" /><button id="item_delete_submit">删除区块</button></p></form>', position: poly.getBounds().getCenter()});
     google.maps.event.addListener(addWindow, 'closeclick', function(){
-      poly.setMap(null);
-      poly = null;
+      poly.setEditable(false);
     });
-  
+  addWindow.open(map);
+
+  $('#item_add').bind('submit', function(){//modified
+    if(!$('#item_name').val()){
+      alert('请输入名称。');
+      return false;
+    }
+    poly.setEditable(false); 
+
+    jsonObj.area[jsonObjindex].path = poly.path;
+    jsonObj.area[jsonObjindex].mode = 0;
+    jsonObj.area[jsonObjindex].info = $('#item_meta').val();
+    jsonObj.area[jsonObjindex].name = $('#item_name').val();
+
+    addWindow.close();
+    return false;
+  });
+
+  $('#item_delete_submit').bind('click', function() {
+    poly.setMap(null);
+    jsonObj.area.splice(jsonObjindex,jsonObjindex+1);
+  });
 }
 
 
