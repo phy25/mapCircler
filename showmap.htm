@@ -70,6 +70,7 @@ function initialize() {
       mapTypeId: google.maps.MapTypeId.ROADMAP
     };
   map = new google.maps.Map(document.getElementById("map_shantou"),myOptions);
+
   // drawing tools on the map
   var drawingManager = new google.maps.drawing.DrawingManager({
     drawingMode: google.maps.drawing.OverlayType.POLYGON,
@@ -129,7 +130,7 @@ function initialize() {
     Block.setMap(map);
 
  // Add a listener for the click event
-    google.maps.event.addListener(Block, 'rightclick', editBlock);
+    google.maps.event.addListener(Block, 'dbclick', editBlock);// TODO: not working
   }
 
   google.maps.event.addListener(map, 'click', closePoly);
@@ -140,7 +141,22 @@ function initialize() {
 
 }
 
+// modify the Block: set the poly editable, open info, when done, replace info or dele the poly
+function editBlock(event) {
+  // Add markers on vertices of the Polygon Since this Polygon only has one path, we can call getPath()
+  // to return the MVCArray of LatLngs
 
+
+//  var contentString = "<b>"+ jsonObj.area[this.zIndex].name +"</b><br />";
+  var poly = this;
+  poly.setEditable(true); 
+  var addWindow = new google.maps.InfoWindow({content: '<form id="item_add"><p><label for="item_name">名称</label> <input type="text" id="item_name" required="required" /></p><p><label for="item_meta">备注</label> <textarea id="item_meta" style="height:100px;width:300px;"></textarea></p><p><input type="submit" value="确定" id="item_add_submit" /></p></form>', position: poly.getBounds().getCenter()});
+    google.maps.event.addListener(addWindow, 'closeclick', function(){
+      poly.setMap(null);
+      poly = null;
+    });
+  
+}
 
 
 function showMenu(event) {
@@ -222,49 +238,6 @@ function addPoint(event)
 
 }
 
-function editBlock(event) {
-  // Add markers on vertices of the Polygon Since this Polygon only has one path, we can call getPath()
-  // to return the MVCArray of LatLngs
-
-
-//  var contentString = "<b>"+ jsonObj.area[this.zIndex].name +"</b><br />";
-  
-  path = this.getPath();
-  markers = [];
-  
-  for (var i =0; i < path.length; i++) {
-    var marker = new google.maps.Marker({
-      position: path.getAt(i),
-      map: map,
-      draggable: true
-    });
-    markers.push(marker);  
-    marker.setTitle("#" + i);
-  
-    google.maps.event.addListener(marker, 'dragend', function(event) {
-      for (var i = 0, I = markers.length; i < I; i++) {
-        if (markers[i] == marker) {
-          path.setAt(i,event.latLng) //替换多边形顶点
-          break;
-        }
-      }
-    });
-
-    google.maps.event.addListener(marker, 'click', function() {
-      marker.setMap(null);//删除点
-      for (var i = 0, I = markers.length; i < I; i++) {
-        if (markers[i] == marker) {
-          markers.splice(i, 1);
-          path.removeAt(i);  //删除多边形线路
-          break;
-        }
-      }
-    });
-  };
-
-
-
-}
 
 
 
