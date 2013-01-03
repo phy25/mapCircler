@@ -130,7 +130,7 @@ function initialize() {
     Block.setMap(map);
 
  // Add a listener for the click event
-    google.maps.event.addListener(Block, 'dbclick', editBlock);// TODO: not working
+    google.maps.event.addListener(Block, 'dblclick', editBlock);
   }
 
   google.maps.event.addListener(map, 'click', closePoly);
@@ -143,9 +143,10 @@ function initialize() {
 
 // modify the Block: set the poly editable, open info, when done, replace info or dele the poly
 function editBlock(event) {
+  event.stop();// 停止默认的放大行为的执行
   // Add markers on vertices of the Polygon Since this Polygon only has one path, we can call getPath()
   // to return the MVCArray of LatLngs
-
+ 
 
 //  var contentString = "<b>"+ jsonObj.area[this.zIndex].name +"</b><br />";
   var poly = this;
