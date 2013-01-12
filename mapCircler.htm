@@ -49,7 +49,7 @@ function htmlEncode(str) {
 	 return s;
 }
 
-//查找指定多边形的位置，用zIndex作为键值 
+//查找指定多边形的位置，用zIndex作为索引值 
 function getzIndex(jsonObj,poly){
 	for (var i = 0; i < jsonObj.area.length; i++) {
 		if (poly.zIndex == jsonObj.area[i].zIndex) return i;
@@ -58,7 +58,9 @@ function getzIndex(jsonObj,poly){
 }
 
 
-// 根据json数据，画出区域，参数index为需要画的序号，mode=true 为新建，false为重画
+// 根据json数据，画出区域，并加入双击响应程序
+// index为需要画的序号，
+// mode=true 为新建，需要维护Blocks和Name两个数组。false为重画
 function drawBlockJson(index, mode){
 	//var j = index;
 	var indexObj = jsonObj.area[index];
@@ -73,7 +75,7 @@ function drawBlockJson(index, mode){
 	if (mode){ newzIndex = index; }
 	else {newzIndex = indexObj.zIndex;};
 
-	indexObj.zIndex = index;    //initial zIndex,unique
+	indexObj.zIndex = newzIndex;    //initial zIndex,unique，新建时初始值是0，所以要用index填入
 	var Block = new google.maps.Polygon({
 		paths: path,
 		strokeColor: jsonObj.mode[indexObj.mode].strokeColor,
@@ -99,6 +101,7 @@ function drawBlockJson(index, mode){
 
 }
 
+// 删除指定的json、Blocks、Names中的数据，并将地图上的区域和相关程序删除，
 function deleBlockJson(index){
 	if (index >= jsonObj.area.length) return false;
  
@@ -115,7 +118,9 @@ function deleBlockJson(index){
 }
 
 
+// 将 poly 存入json中，并重画poly：先删除poly和相关的程序，再用json数据画出。
 function addSubmit(poly){
+	// 将 图 存入 jsonObj
 	if (jsonObj.area.length == 0) { poly.zIndex = 0; }
 	else { poly.zIndex = jsonObj.area[jsonObj.area.length-1].zIndex+1; };
 	jsonObj.area.push({"mode":0,"info":$('#item_meta').val(),"name":$('#item_name').val(), "zIndex":poly.zIndex});
@@ -127,10 +132,12 @@ function addSubmit(poly){
 		jsonObj.area[jsonObj.area.length-1].paths.push({Lat:xy.lat(), Lng:xy.lng()});
 	}
 
-			// 删除画出的区域
+	// 删除画出的区域
 	poly.setMap(null)
+	google.maps.event.clearInstanceListeners(poly);
 	poly = null;
-			// 画出jsonObj中的区域并初始化
+
+	// 画出jsonObj中的区域并初始化
 	drawBlockJson(jsonObj.area.length-1,true);
 }
 
@@ -196,65 +203,25 @@ function initialize() {
 
 			// when cancel，simply delete on the map, nothing about the json.
 			$('#item_cancelBtn').bind('click', function(){
+				// 删除画出的区域
 				poly.setMap(null);
 			    poly = null;
+				// 关闭对话窗口
 				acceptWindow.close();
 				return false; // Optional
 			});
 		});
 
 		google.maps.event.addListener(acceptWindow, 'closeclick', function(){
-			if (jsonObj.area.length == 0) { poly.zIndex = 0; }
-			else { poly.zIndex = jsonObj.area[jsonObj.area.length-1].zIndex+1; };
-			jsonObj.area.push({"mode":0,"info":$('#item_meta').val(),"name":$('#item_name').val(), "zIndex":poly.zIndex});
-		
-			var path = poly.getPath();
-			jsonObj.area[jsonObj.area.length-1].paths=[];
-			for (i=0; i < path.length; i++){
-				var xy = path.getAt(i);
-				jsonObj.area[jsonObj.area.length-1].paths.push([xy.lat(),xy.lng()]);
-			}
-
 			// 删除画出的区域
 			poly.setMap(null);
 			poly = null;
-			// 画出jsonObj中的区域并初始化
-			drawBlockJson(jsonObj.area.length-1,true);
-
+			// 关闭对话窗口
 			acceptWindow.close();
-
-
+			return false
 		});
 
 
-/*    $('#item_add_submit').bind('submit', function(){
-			if(!$('#item_name').val()){
-				alert('请输入名称。');
-				return false;
-			}
-
-			// 将 图 存入 jsonObj
-			if (jsonObj.area.length == 0) { poly.zIndex = 0; }
-			else { poly.zIndex = jsonObj.area[jsonObj.area.length-1].zIndex+1; };
-			jsonObj.area.push({"mode":0,"info":$('#item_meta').val(),"name":$('#item_name').val(), "zIndex":poly.zIndex});
-		
-			var path = poly.getPath();
-			jsonObj.area[jsonObj.area.length-1].paths=[];
-			for (i=0; i < path.length; i++){
-				var xy = path.getAt(i);
-				jsonObj.area[jsonObj.area.length-1].paths.push([xy.lat(),xy.lng()]);
-			}
-
-			// 删除画出的区域
-			poly.setMap(null);
-			poly = null;
-			// 画出jsonObj中的区域并初始化
-			drawBlockJson(jsonObj.area.length-1,true);
-
-			acceptWindow.close();
-			return false;
-		});
-*/
 	});
 
 
@@ -290,114 +257,53 @@ function editBlock(event) {
 	poly.setEditable(true);
 
 	var infoPos = new google.maps.LatLng(map.getBounds().getSouthWest().lat(),map.getBounds().getNorthEast().lng());
-	var addWindow = new google.maps.InfoWindow({content: '<form id="item_add"><p><label for="item_name">名称</label> <input type="text" id="item_name" required="required" value="'+htmlEncode(jsonObj.area[jsonObjindex].name)+'" /></p><p><label for="item_meta">备注</label> <textarea id="item_meta" style="height:100px;width:300px;">'+htmlEncode(jsonObj.area[jsonObjindex].info)+'</textarea></p><p><input type="submit" value="确定" id="item_add_submit" /><button id="item_delete_submit">删除区块</button></p></form>', position: poly.getBounds().getCenter()});
-	
+
+	var addWindow = new google.maps.InfoWindow({
+			content: '<form id="item_add"><p><label for="item_name">名称</label> <input type="text" id="item_name" required="required" value="'+htmlEncode(jsonObj.area[jsonObjindex].name)+'" /></p><p><label for="item_meta">备注</label> <textarea id="item_meta" style="height:50px;width:250px;">'+htmlEncode(jsonObj.area[jsonObjindex].info)+'</textarea></p><p><input type="submit" value="确定" id="item_acceptBtn" /> <input type="button" value="删除" id="item_cancelBtn" /></p></form>', 
+			position: poly.getBounds().getCenter()
+		});
 	addWindow.open(map);
 	
 	// cancel editing
+
 	google.maps.event.addListener(addWindow, 'closeclick', function(){
 
-		if(!$('#item_name').val()){
-			alert('请输入名称。');
-			return false;
-		}
+		poly.setMap(null);
+		google.maps.event.clearInstanceListeners(poly);
+		poly = null;
 		
-		// 删除jsonObj中的原数据，写入 jsonObj，删除被修改的区域，重画区域
-		
-		// 将 图 存入 jsonObj
-		if (jsonObj.area.length == 0) { poly.zIndex = 0; }
-		else { poly.zIndex = jsonObj.area[jsonObj.area.length-1].zIndex+1; };
-		jsonObj.area.push({"mode":0,"info":$('#item_meta').val(),"name":$('#item_name').val(), "zIndex":poly.zIndex});
-		
-		var path = poly.getPath();
-		jsonObj.area[jsonObj.area.length-1].paths=[];
-		for (i=0; i < path.length; i++){
-			var xy = path.getAt(i);
-			jsonObj.area[jsonObj.area.length-1].paths.push([xy.lat(),xy.lng()]);
-		}
-
-		// 删除指定的原图和数据
-		deleBlockJson(jsonObjindex);
-
-		// 画出新的区域
-		drawBlockJson(jsonObj.area.length-1,true);
-
-
-//    poly.setMap(null);
-//    poly = null;
-		
+		drawBlockJson(jsonObjindex,false);
 		addWindow.close();
-
-//    drawBlockJson(jsonObjindex,false);
-//    return false;
+	    return false;
 	});
 	
-	// confirm editing
-//  google.maps.event.addDomListener(submit, 'click',function(){
-//    return;
-//  })
+	google.maps.event.addListener(addWindow, 'domready', function(){
+		$('#item_add_submit').bind('submit', function(){//modified
+			if(!$('#item_name').val()){
+				alert('请输入名称。');
+				return false;
+			};
+		
+			// poly.setEditable(false); 
+			// 删除jsonObj中的原数据，写入 jsonObj，删除被修改的区域，重画区域
+		
+			// 删除指定的原图
+			deleBlockJson(jsonObjindex);
+			// 将图存入 jsonObj,并重画
+			addSubmit(poly);
 
-	$('#item_add_submit').bind('submit', function(){//modified
-		if(!$('#item_name').val()){
-			alert('请输入名称。');
+			addWindow.close();
 			return false;
-		}
-		
-		poly.setEditable(false); 
-		// 删除jsonObj中的原数据，写入 jsonObj，删除被修改的区域，重画区域
-		
-		// 将 图 存入 jsonObj
-		if (jsonObj.area.length == 0) { poly.zIndex = 0; }
-		else { poly.zIndex = jsonObj.area[jsonObj.area.length-1].zIndex+1; };
-		jsonObj.area.push({"mode":0,"info":$('#item_meta').val(),"name":$('#item_name').val(), "zIndex":poly.zIndex});
-		
-		var path = poly.getPaths();
-		for (i=0; i<poly.paths.length; i++){
-			jsonObj.area[jsonObj.area.length-1].paths.push(poly.paths[i].getAt());
-		}
-		// 删除指定的原图
-		deleBlockJson(jsonObjindex);
+		});
 
-		// 画出新的区域
-		drawBlockJson(jsonObj.area.length-1,true);
-
-
-		jsonObj.area[jsonObjindex].path = poly.path;
-		jsonObj.area[jsonObjindex].mode = 0;
-		jsonObj.area[jsonObjindex].info = $('#item_meta').val();
-		var Block = Blocks[jsonObjindex];
-		Block = null;
-		Blocks[jsonObjindex] = poly;
-
-		if (jsonObj.area[jsonObjindex].name != $('#item_name').val()) {
-			jsonObj.area[jsonObjindex].name = $('#item_name').val();
-			Names[jsonObjindex].setMap(null);
-			var image = 'https://chart.googleapis.com/chart?chst=d_text_outline&chld=000000|20|l|000000|_|'+$('#item_name').val();
-			var nameMarker = new google.maps.Marker({
-				position: poly.getBounds().getCenter(),
-				map: map,
-				icon: image
-			});
-			Names[jsonObjindex] = nameMarker;
-		};
-		addWindow.close();
-		return false;
+		$('#item_delete_submit').bind('click', function() {
+			deleBlockJson(jsonObjindex);
+			addWindow.close();
+			return false;
+		});
 	});
-
-	$('#item_delete_submit').bind('click', function() {
-		poly.setMap(null);
-		poly = null;
-		Blocks.splice(jsonObjindex,jsonObjindex+1);
-
-		jsonObj.area.splice(jsonObjindex,jsonObjindex+1);
-
-		Names[jsonObjindex].setMap(null);
-		var nameMarker = Names[jsonObjindex];
-		nameMarker = null;
-		Names.splice(jsonObjindex,jsonObjindex+1);
-	});
-
 }
+
 
 // add controller to load the file
 // The LoadControl adds a control to the map that
