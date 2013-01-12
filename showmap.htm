@@ -57,6 +57,47 @@ function getzIndex(jsonObj,poly){
   return null; 
 }
 
+
+// 根据json数据，画出区域，参数index为需要画的序号，mode=true 为新建，false为重画
+function drawBlockJson(index,mode){
+  var j = index;
+  if (j >= jsonObj.area.length) return false;
+
+  var path=[];
+  for (var i =0; i < jsonObj.area[j].paths.length; i++) {
+    path.push(new google.maps.LatLng(jsonObj.area[j].paths[i].Lat,jsonObj.area[j].paths[i].Lng));
+  }
+
+  var newzIndex;
+  if (mode){ newzIndex = j; }
+  else {newzIndex = jsonObj.area[j].zIndex;};
+
+  jsonObj.area[j].zIndex = j;    //initial zIndex,unique
+  var Block = new google.maps.Polygon({
+    paths: path,
+    strokeColor: jsonObj.mode[jsonObj.area[j].mode].strokeColor,
+    strokeOpacity: jsonObj.mode[jsonObj.area[j].mode].strokeOpacity,
+    strokeWeight: jsonObj.mode[jsonObj.area[j].mode].strokeWeight,
+    fillColor: jsonObj.mode[jsonObj.area[j].mode].fillColor,
+    fillOpacity: jsonObj.mode[jsonObj.area[j].mode].fillOpactiy,
+    zIndex:j
+  });
+
+  Block.setMap(map);
+  if (mode) {  Blocks.push(Block); } ;
+  
+  var image = 'https://chart.googleapis.com/chart?chst=d_text_outline&chld=000000|20|l|000000|_|'+jsonObj.area[j].name;
+  var nameMarker = new google.maps.Marker({
+    position: Block.getBounds().getCenter(),
+    map: map,
+    icon: image,
+  });
+  if (mode) { names.push(nameMarker); };
+  
+ // Add a listener for the click event
+  google.maps.event.addListener(Block, 'dblclick', editBlock);
+
+}
 /*https://chart.googleapis.com/chart?chst=d_text_outline&chld=000000|20|l|000000|_|粤东信息大厦  做为maker显示*/
 
 
@@ -115,6 +156,7 @@ function initialize() {
     });
 
     addWindow.open(map);
+    
     $('#item_add').bind('submit', function(){
       if(!$('#item_name').val()){
         alert('请输入名称。');
@@ -149,7 +191,9 @@ function initialize() {
   names = [];
   Blocks = [];
   for (var j = 0; j < jsonObj.area.length; j++) { 
-    var areaCoords=[];
+    drawBlockJson(j,true);
+  };
+/*    var areaCoords=[];
     for (var i =0; i < jsonObj.area[j].paths.length; i++) {
       areaCoords.push(new google.maps.LatLng(jsonObj.area[j].paths[i].Lat,jsonObj.area[j].paths[i].Lng));
     }
@@ -166,7 +210,7 @@ function initialize() {
 
     Block.setMap(map);
     Blocks.push(Block);
-/*  显示名字在区域中心 */
+//  显示名字在区域中心 
     var image = 'https://chart.googleapis.com/chart?chst=d_text_outline&chld=000000|20|l|000000|_|'+jsonObj.area[j].name;
     var nameMarker = new google.maps.Marker({
       position: Block.getBounds().getCenter(),
@@ -178,7 +222,7 @@ function initialize() {
  // Add a listener for the click event
     google.maps.event.addListener(Block, 'dblclick', editBlock);
   }
-
+*/
 }
 
 
@@ -204,15 +248,23 @@ function editBlock(event) {
   
   addWindow.open(map);
   
+  // cancel editing
   google.maps.event.addListener(addWindow, 'closeclick', function(){
-    poly.setEditable(false);
+    poly.setMap(null);
     poly = null;
+    
+    addWindow.close();
 
-    Blocks[jsonObjindex].setMap(map);
+    drawBlockJson(jsonObjindex,false);
+    return false;
   });
   
-  
-  $('#item_add').bind('submit', function(){//modified
+  // confirm editing
+  google.maps.event.addDomListener(item_add_submit, 'click',function(){
+    return;
+  })
+
+/*  $('#item_add').bind('submit', function(){//modified
     if(!$('#item_name').val()){
       alert('请输入名称。');
       return false;
@@ -240,7 +292,7 @@ function editBlock(event) {
     addWindow.close();
     return false;
   });
-
+*/
   $('#item_delete_submit').bind('click', function() {
     poly.setMap(null);
     poly = null;
@@ -283,7 +335,7 @@ function InputControl(controlDiv, map) {
   controlUI.appendChild(controlText);
 
   // Setup the click event listeners:
-   $('#item_add').bind('submit', function(){//modified
+  $('#item_add').bind('submit', function(){//modified
     if(!$('#item_name').val()){
       alert('请输入名称。');
       return false;
