@@ -58,11 +58,11 @@ function getzIndex(jsonObj,poly){
 }
 
 
-// 根据json数据，画出区域，并加入双击响应程序
+// 根据json数据，画出区域，并加入双击响应程序，jsonObj中的zIndex已经初始化
 // index为需要画的序号，
 // mode=true 为新建，需要维护Blocks和Name两个数组。false为重画
 function drawBlockJson(index, mode){
-	//var j = index;
+
 	var indexObj = jsonObj.area[index];
 	if (index >= jsonObj.area.length) return false;
 
@@ -71,11 +71,7 @@ function drawBlockJson(index, mode){
 		path.push(new google.maps.LatLng(indexObj.paths[i].Lat, indexObj.paths[i].Lng));
 	}
 
-	var newzIndex;
-	if (mode){ newzIndex = index; }
-	else {newzIndex = indexObj.zIndex;};
-
-	indexObj.zIndex = newzIndex;    //initial zIndex,unique，新建时初始值是0，所以要用index填入
+	//initial zIndex,unique，新建时初始值已经初始化，不需要index填入
 	var Block = new google.maps.Polygon({
 		paths: path,
 		strokeColor: jsonObj.mode[indexObj.mode].strokeColor,
@@ -83,12 +79,12 @@ function drawBlockJson(index, mode){
 		strokeWeight: jsonObj.mode[indexObj.mode].strokeWeight,
 		fillColor: jsonObj.mode[indexObj.mode].fillColor,
 		fillOpacity: jsonObj.mode[indexObj.mode].fillOpactiy,
-		zIndex:newzIndex
+		zIndex: indexObj.zIndex
 	});
 	Block.setMap(map);
 	if (mode) {  Blocks.push(Block); } ;
 	
-	var image = 'https://chart.googleapis.com/chart?chst=d_text_outline&chld=000000|20|l|000000|_|'+ indexObj.name;
+	var image = 'http://chart.googleapis.com/chart?chst=d_text_outline&chld=FFFFFF|20|l|000000|_|'+ indexObj.name;
 	var nameMarker = new google.maps.Marker({
 		position: Block.getBounds().getCenter(),
 		map: map,
@@ -210,6 +206,8 @@ function initialize() {
 				acceptWindow.close();
 				return false; // Optional
 			});
+
+			$('#item_name').focus();
 		});
 
 		google.maps.event.addListener(acceptWindow, 'closeclick', function(){
@@ -231,6 +229,7 @@ function initialize() {
 	Names = [];
 	Blocks = [];
 	for (var j = 0; j < jsonObj.area.length; j++) { 
+		jsonObj.area[j].zIndex = j;	//初始化zIndex
 		drawBlockJson(j,true);
 	};
 
@@ -259,7 +258,7 @@ function editBlock(event) {
 	var infoPos = new google.maps.LatLng(map.getBounds().getSouthWest().lat(),map.getBounds().getNorthEast().lng());
 
 	var addWindow = new google.maps.InfoWindow({
-			content: '<form id="item_add"><p><label for="item_name">名称</label> <input type="text" id="item_name" required="required" value="'+htmlEncode(jsonObj.area[jsonObjindex].name)+'" /></p><p><label for="item_meta">备注</label> <textarea id="item_meta" style="height:50px;width:250px;">'+htmlEncode(jsonObj.area[jsonObjindex].info)+'</textarea></p><p><input type="submit" value="确定" id="item_acceptBtn" /> <input type="button" value="删除" id="item_cancelBtn" /></p></form>', 
+			content: '<form id="item_modify"><p><label for="item_name">名称</label> <input type="text" id="item_name" required="required" value="'+htmlEncode(jsonObj.area[jsonObjindex].name)+'" /></p><p><label for="item_meta">备注</label> <textarea id="item_meta" style="height:50px;width:250px;">'+htmlEncode(jsonObj.area[jsonObjindex].info)+'</textarea></p><p><input type="submit" value="确定" id="item_acceptBtn" /> <input type="button" value="删除" id="item_deleteBtn" /> <input type="button" value="放弃" id="item_cancelBtn" /></p></form>', 
 			position: poly.getBounds().getCenter()
 		});
 	addWindow.open(map);
@@ -278,14 +277,14 @@ function editBlock(event) {
 	});
 	
 	google.maps.event.addListener(addWindow, 'domready', function(){
-		$('#item_add_submit').bind('submit', function(){//modified
+		
+		$('#item_modify').bind('submit', function(){//modified
+			
+			// 删除jsonObj中的原数据，写入 jsonObj，删除被修改的区域，重画区域
 			if(!$('#item_name').val()){
 				alert('请输入名称。');
 				return false;
 			};
-		
-			// poly.setEditable(false); 
-			// 删除jsonObj中的原数据，写入 jsonObj，删除被修改的区域，重画区域
 		
 			// 删除指定的原图
 			deleBlockJson(jsonObjindex);
@@ -296,11 +295,23 @@ function editBlock(event) {
 			return false;
 		});
 
-		$('#item_delete_submit').bind('click', function() {
+		$('#item_deleteBtn').bind('click', function() {
 			deleBlockJson(jsonObjindex);
 			addWindow.close();
 			return false;
 		});
+
+		$('#item_cancelBtn').bind('click', function() {
+			poly.setMap(null);
+			google.maps.event.clearInstanceListeners(poly);
+			poly = null;
+		
+			drawBlockJson(jsonObjindex,false);
+			addWindow.close();
+	    	return false;
+		});
+
+		$('#item_name').focus();
 	});
 }
 
