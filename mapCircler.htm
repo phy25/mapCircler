@@ -37,6 +37,22 @@ if (!google.maps.Polygon.prototype.getBounds) {
 ﻿  }
 }
 
+
+function PolygonCenter (poly) {
+	var x,y;
+
+    var vertices = poly.getPath();
+
+      // Iterate over the vertices.
+    for (var i=0, x=0, y=0; i < vertices.length; i++) {
+    	var xy = vertices.getAt(i);
+        x = x + xy.lat();
+        y = y + xy.lng();
+    }		
+	x = x / vertices.length;
+	y = y / vertices.length;
+	return new google.maps.LatLng(x, y);
+}
 // 将html编码
 function htmlEncode(str) {
 	 var s = "";
@@ -86,7 +102,7 @@ function drawBlockJson(index, mode){
 	
 	var image = 'http://chart.googleapis.com/chart?chst=d_text_outline&chld=FFFFFF|20|l|000000|_|'+ indexObj.name;
 	var nameMarker = new google.maps.Marker({
-		position: Block.getBounds().getCenter(),
+		position: PolygonCenter(Block),
 		map: map,
 		icon: image,
 	});
@@ -135,6 +151,46 @@ function addSubmit(poly){
 
 	// 画出jsonObj中的区域并初始化
 	drawBlockJson(jsonObj.area.length-1,true);
+}
+
+
+var str = JsonString(jsonObj);
+// JSONArray arr = new JSONArray(str);
+
+
+function JsonString (jsonObj){
+	var contentString = '{';
+	// construct mode
+	contentString += '"mode":['
+	for (var i=0; i<jsonObj.mode.length; i++){
+		contentString += '{"strokeColor":"' + jsonObj.mode[i].strokeColor + '",';
+		contentString += '"strokeOpacity":' + jsonObj.mode[i].strokeOpacity + ',';
+		contentString += '"strokeWeight":' + jsonObj.mode[i].strokeWeight + ',';
+		contentString += '"fillColor":"' + jsonObj.mode[i].fillColor + '",';
+		contentString += '"fillOpacity":' + jsonObj.mode[i].fillOpacity + '}';
+		if (i < jsonObj.mode.length-1) { contentString += ','}
+	}
+	contentString += '],'
+	// construct area
+	contentString += '"area":['
+	for (var i=0; i<jsonObj.area.length; i++){
+		contentString += '{"paths":['
+		for (var j=0; j<jsonObj.area[i].paths.length; j++){
+			contentString += '{"Lat":' + jsonObj.area[i].paths[j].Lat + ',';
+			contentString += '"Lng":' + jsonObj.area[i].paths[j].Lng + '}';
+			if (j < jsonObj.area[i].paths.length-1) { contentString += ',' };
+		}
+		contentString += '],'
+
+		contentString += '"mode":' + jsonObj.area[i].mode + ',';
+		contentString += '"info":"' + jsonObj.area[i].info + '",';
+		contentString += '"name":"' + jsonObj.area[i].name + '",';
+		contentString += '"zIndex":' + jsonObj.area[i].zIndex + '}';
+		if (i < jsonObj.area.length-1) { contentString += ','}
+	}
+	contentString += ']}';
+
+	return contentString;
 }
 
 var map, jsonObj, Names, Blocks;
@@ -186,7 +242,7 @@ function initialize() {
 		poly.setEditable(true);
 		var acceptWindow = new google.maps.InfoWindow({
 			content: '<form id="item_add"><p><label for="item_name">名称</label> <input type="text" id="item_name" required="required" /></p><p><label for="item_meta">备注</label> <textarea id="item_meta" style="height:50px;width:250px;"></textarea></p><p><input type="submit" value="确定" id="item_acceptBtn" /> <input type="button" value="放弃" id="item_cancelBtn" /></p></form>', 
-			position: poly.getBounds().getCenter()
+			position: PolygonCenter(poly)
 		});
 		acceptWindow.open(map);
 
@@ -259,7 +315,7 @@ function editBlock(event) {
 
 	var addWindow = new google.maps.InfoWindow({
 			content: '<form id="item_modify"><p><label for="item_name">名称</label> <input type="text" id="item_name" required="required" value="'+htmlEncode(jsonObj.area[jsonObjindex].name)+'" /></p><p><label for="item_meta">备注</label> <textarea id="item_meta" style="height:50px;width:250px;">'+htmlEncode(jsonObj.area[jsonObjindex].info)+'</textarea></p><p><input type="submit" value="确定" id="item_acceptBtn" /> <input type="button" value="删除" id="item_deleteBtn" /> <input type="button" value="放弃" id="item_cancelBtn" /></p></form>', 
-			position: poly.getBounds().getCenter()
+			position: PolygonCenter(poly)
 		});
 	addWindow.open(map);
 	
@@ -339,7 +395,7 @@ function FileControl(controlDiv, map) {
     loadFileUI.style.borderWidth = '2px';
     loadFileUI.style.cursor = 'pointer';
     loadFileUI.style.textAlign = 'center';
-    loadFileUI.title = 'Click to load the json file';
+    loadFileUI.title = 'Click to load the Data file';
     controlDiv.appendChild(loadFileUI);
 
     // Set CSS for the control interior
@@ -348,7 +404,7 @@ function FileControl(controlDiv, map) {
     loadFileText.style.fontSize = '12px';
     loadFileText.style.paddingLeft = '4px';
     loadFileText.style.paddingRight = '4px';
-    loadFileText.innerHTML = '<b>Load Json</b>';
+    loadFileText.innerHTML = '<b>Load Data</b>';
     loadFileUI.appendChild(loadFileText);
 
     // Set CSS for the save control border
@@ -358,7 +414,7 @@ function FileControl(controlDiv, map) {
     saveFileUI.style.borderWidth = '2px';
     saveFileUI.style.cursor = 'pointer';
     saveFileUI.style.textAlign = 'center';
-    saveFileUI.title = 'Click to save the json file to disk';
+    saveFileUI.title = 'Click to save the Data file to disk';
     controlDiv.appendChild(saveFileUI);
 
     // Set CSS for the control interior
@@ -367,7 +423,7 @@ function FileControl(controlDiv, map) {
     saveFileText.style.fontSize = '12px';
     saveFileText.style.paddingLeft = '4px';
     saveFileText.style.paddingRight = '4px';
-    saveFileText.innerHTML = '<b>Save Json</b>';
+    saveFileText.innerHTML = '<b>Save Data</b>';
     saveFileUI.appendChild(saveFileText);
 
     // Setup the click event listener for Home:
