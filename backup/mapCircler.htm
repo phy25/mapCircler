@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+	<meta charset="utf-8">
+	<style type="text/css">
+		html { height: 100% }
+			body { height: 100%; margin: 0px; padding: 0px }
+			#map_shantou { height: 100% }
+	</style>
+
+	<script type="text/javascript"
+				src="https://maps.google.com/maps/api/js?sensor=false&libraries=drawing">
+	</script>
+
+	<script src="../js/jquery.min.js"></script>
+	<script src="../js/jquery.json-2.4.min.js"></script>
+	<script src="js/bootstrap.min.js"></script>
+
+	<script type="text/javascript">
+
+/*以下函数计算多边形的中心点，调用方法：Polygon.getBounds().getCenter()
+	<script type="text/javascript" src="jquery.min.js"></scri
+*/
+if (!google.maps.Polygon.prototype.getBounds) {
+﻿  google.maps.Polygon.prototype.getBounds = function(latLng) {
+
+﻿  ﻿  var bounds = new google.maps.LatLngBounds();
+﻿  ﻿  var paths = this.getPaths();
+﻿  ﻿  var path;
+﻿  ﻿  
+﻿  ﻿  for (var p = 0; p < paths.getLength(); p++) {
+﻿  ﻿  ﻿  path = paths.getAt(p);
+﻿  ﻿  ﻿  for (var i = 0; i < path.getLength(); i++) {
+﻿  ﻿  ﻿  ﻿  bounds.extend(path.getAt(i));
+﻿  ﻿  ﻿  }
+﻿  ﻿  }
+
+﻿  ﻿  return bounds;
+﻿  }
+}
+
+
+function PolygonCenter (poly) {
+	var x,y;
+
+    var vertices = poly.getPath();
+
+      // Iterate over the vertices.
+    for (var i=0, x=0, y=0; i < vertices.length; i++) {
+    	var xy = vertices.getAt(i);
+        x = x + xy.lat();
+        y = y + xy.lng();
+    }		
+	x = x / vertices.length;
+	y = y / vertices.length;
+	return new google.maps.LatLng(x, y);
+}
+// 将html编码
+function htmlEncode(str) {
+	 var s = "";
+	 if (str.length == 0) return "";
+	 s = str.replace(/&/g, "&amp;");
+	 s = s.replace(/</g, "&lt;");
+	 s = s.replace(/>/g, "&gt;");  
+	 s = s.replace(/\'/g, "&#39;");
+	 s = s.replace(/\"/g, "&quot;");
+	 return s;
+}
+
+//查找指定多边形的位置，用zIndex作为索引值 
+function getzIndex(jsonObj,poly){
+	for (var i = 0; i < jsonObj.area.length; i++) {
+		if (poly.zIndex == jsonObj.area[i].zIndex) return i;
+	}
+	return null; 
+}
+
+
+// 根据json数据，画出区域，并加入双击响应程序，jsonObj中的zIndex已经初始化
+// index为需要画的序号，
+// mode=true 为新建，需要维护Blocks和Name两个数组。false为重画
+function drawBlockJson(index, mode){
+
+	var indexObj = jsonObj.area[index];
+	if (index >= jsonObj.area.length) return false;
+
+	var path=[];
+	for (var i =0; i < indexObj.paths.length; i++) {
+		path.push(new google.maps.LatLng(indexObj.paths[i].Lat, indexObj.paths[i].Lng));
+	}
+
+	//initial zIndex,unique，新建时初始值已经初始化，不需要index填入
+	var Block = new google.maps.Polygon({
+		paths: path,
+		strokeColor: jsonObj.mode[indexObj.mode].strokeColor,
+		strokeOpacity: jsonObj.mode[indexObj.mode].strokeOpacity,
+		strokeWeight: jsonObj.mode[indexObj.mode].strokeWeight,
+		fillColor: jsonObj.mode[indexObj.mode].fillColor,
+		fillOpacity: jsonObj.mode[indexObj.mode].fillOpactiy,
+		zIndex: indexObj.zIndex
+	});
+	Block.setMap(map);
+	if (mode) {  Blocks.push(Block); } ;
+	
+	var image = 'http://chart.googleapis.com/chart?chst=d_text_outline&chld=FFFFFF|20|l|000000|_|'+ indexObj.name;
+	var nameMarker = new google.maps.Marker({
+		position: PolygonCenter(Block),
+		map: map,
+		icon: image
+	});
+	if (mode) { Names.push(nameMarker); };
+	
+ // Add a listener for the click event
+	google.maps.event.addListener(Block, 'dblclick', editBlock);
+
+}
+
+// 删除指定的json、Blocks、Names中的数据，并将地图上的区域和相关程序删除，
+function deleBlockJson(index){
+	if (index >= jsonObj.area.length) return false;
+ 
+	var poly=Blocks[index];
+	google.maps.event.clearInstanceListeners(poly);
+	poly.setMap(null);
+	Blocks.splice(index,index+1);
+
+	var marker = Names[index];
+	marker.setMap(null);
+	Names.splice(index,index+1);
+
+	jsonObj.area.splice(index,index+1);
+}
+
+
+// 将 poly 存入json中，并重画poly：先删除poly和相关的程序，再用json数据画出。
+function addSubmit(poly){
+	// 将 图 存入 jsonObj
+	if (jsonObj.area.length == 0) { poly.zIndex = 0; }
+	else { poly.zIndex = jsonObj.area[jsonObj.area.length-1].zIndex+1; };
+	jsonObj.area.push({"mode":0,"info":$('#item_meta').val(),"name":$('#item_name').val(), "zIndex":poly.zIndex});
+		
+	var path = poly.getPath();
+	jsonObj.area[jsonObj.area.length-1].paths=[];
+	for (i=0; i < path.length; i++){
+		var xy = path.getAt(i);
+		jsonObj.area[jsonObj.area.length-1].paths.push({Lat:xy.lat(), Lng:xy.lng()});
+	}
+
+	// 删除画出的区域
+	poly.setMap(null)
+	google.maps.event.clearInstanceListeners(poly);
+	poly = null;
+
+	// 画出jsonObj中的区域并初始化
+	drawBlockJson(jsonObj.area.length-1,true);
+}
+
+
+function jsonBound (jsonObj){
+	var x1 = jsonObj.area[0].paths[0].Lat;
+	var y1 = jsonObj.area[0].paths[0].Lng;
+	var x2 = x1, y2 = y1;
+	var x, y;
+	for (i=0; i<jsonObj.area.length; i++){
+		for (j = 0; j<jsonObj.area[i].paths.length; j++){
+			x = jsonObj.area[i].paths[j].Lat;
+			y = jsonObj.area[i].paths[j].Lng;
+			if (x < x1) {x1 = x};
+			if (x > x2) {x2 = x};
+			if (y < y1) {y1 = y};
+			if (y > y2) {y2 = y};
+		}
+	}
+	return true;
+}
+
+
+function JsonString (jsonObj){
+	var contentString = '{';
+	// construct mode
+	contentString += '"mode":['
+	for (var i=0; i<jsonObj.mode.length; i++){
+		contentString += '{"strokeColor":"' + jsonObj.mode[i].strokeColor + '",';
+		contentString += '"strokeOpacity":' + jsonObj.mode[i].strokeOpacity + ',';
+		contentString += '"strokeWeight":' + jsonObj.mode[i].strokeWeight + ',';
+		contentString += '"fillColor":"' + jsonObj.mode[i].fillColor + '",';
+		contentString += '"fillOpacity":' + jsonObj.mode[i].fillOpacity + '}';
+		if (i < jsonObj.mode.length-1) { contentString += ','}
+	}
+	contentString += '],'
+	// construct area
+	contentString += '"area":['
+	for (var i=0; i<jsonObj.area.length; i++){
+		contentString += '{"paths":['
+		for (var j=0; j<jsonObj.area[i].paths.length; j++){
+			contentString += '{"Lat":' + jsonObj.area[i].paths[j].Lat + ',';
+			contentString += '"Lng":' + jsonObj.area[i].paths[j].Lng + '}';
+			if (j < jsonObj.area[i].paths.length-1) { contentString += ',' };
+		}
+		contentString += '],'
+
+		contentString += '"mode":' + jsonObj.area[i].mode + ',';
+		contentString += '"info":"' + jsonObj.area[i].info + '",';
+		contentString += '"name":"' + jsonObj.area[i].name + '",';
+		contentString += '"zIndex":' + jsonObj.area[i].zIndex + '}';
+		if (i < jsonObj.area.length-1) { contentString += ','}
+	}
+	contentString += ']}';
+
+	return contentString;
+}
+
+var map, jsonObj, Names, Blocks;
+var infoWindow;
+
+
+function initialize() {
+// json data input first
+		jsonObj = {
+"mode":[{"strokeColor":"#FF0000", "strokeOpacity":0.8, "strokeWeight": 2, "fillColor":"#FF0000", "fillOpacity": 0.35}],
+
+"area":[
+{"paths": [{"Lat":23.355258,"Lng":116.710652},
+					 {"Lat":23.352138,"Lng":116.710639},
+					 {"Lat":23.352412,"Lng":116.716227},
+					 {"Lat":23.355317,"Lng":116.716077}],
+ "mode":0,"info":"this is first","name":"粤东信息大厦","zIndex":0},
+
+{"paths": [{"Lat":23.3657258,"Lng":116.710652},
+					 {"Lat":23.362138,"Lng":116.710639},
+					 {"Lat":23.362412,"Lng":116.716227}],
+ "mode":0,"info":"this is second","name":"平东街","zIndex":0}
+]};
+
+	// Construct my map
+	var latlng = new google.maps.LatLng(23.352564,116.712881);  //point of Shantou information mall
+	var myOptions = {
+			zoom: 16,
+			center: latlng,
+			mapTypeId: google.maps.MapTypeId.ROADMAP
+		};
+	map = new google.maps.Map(document.getElementById("map_shantou"),myOptions);
+
+	// drawing tools on the map，draw a new poly
+	var drawingManager = new google.maps.drawing.DrawingManager({
+		drawingMode: null,
+		drawingControl: true,
+		drawingControlOptions: {
+			position: google.maps.ControlPosition.TOP_LEFT,
+			drawingModes: [
+			google.maps.drawing.OverlayType.POLYGON
+			]},
+		polygonOptions:jsonObj.mode[0]
+		});
+	drawingManager.setMap(map);
+
+	google.maps.event.addListener(drawingManager, 'polygoncomplete', function(poly) {
+		drawingManager.setDrawingMode(null);
+		poly.setEditable(true);
+		var acceptWindow = new google.maps.InfoWindow({
+			content: '<form id="item_add"><p><label for="item_name">名称</label> <input type="text" id="item_name" required="required" /></p><p><label for="item_meta">备注</label> <textarea id="item_meta" style="height:50px;width:250px;"></textarea></p><p><input type="submit" value="确定" id="item_acceptBtn" /> <input type="button" value="放弃" id="item_cancelBtn" /></p></form>', 
+			position: PolygonCenter(poly)
+		});
+		acceptWindow.open(map);
+
+		google.maps.event.addListener(acceptWindow, 'domready', function(){
+			$('#item_add').bind('submit', function(){
+				addSubmit(poly);
+				acceptWindow.close();
+				return false;  //取消默认提交表单（此处即刷新）操作
+			});
+
+			// when cancel，simply delete on the map, nothing about the json.
+			$('#item_cancelBtn').bind('click', function(){
+				// 删除画出的区域
+				poly.setMap(null);
+			    poly = null;
+				// 关闭对话窗口
+				acceptWindow.close();
+				return false; // Optional
+			});
+
+			$('#item_name').focus();
+		});
+
+		google.maps.event.addListener(acceptWindow, 'closeclick', function(){
+			// 删除画出的区域
+			poly.setMap(null);
+			poly = null;
+			// 关闭对话窗口
+			acceptWindow.close();
+			return false
+		});
+
+
+	});
+
+
+// Construct the polygon
+	// Note that we don't specify an array or arrays, but instead just
+	// a simple array of LatLngs in the paths property
+	Names = [];
+	Blocks = [];
+	for (var j = 0; j < jsonObj.area.length; j++) { 
+		jsonObj.area[j].zIndex = j;	//初始化zIndex
+		drawBlockJson(j,true);
+	};
+
+    // Create the DIV to hold the control and
+    // call the fileControl() constructor passing
+    // in this DIV.
+    var fileControlDiv = document.createElement('div');
+    var fileControl = new FileControl(fileControlDiv, map);
+
+    fileControlDiv.index = 1;
+    map.controls[google.maps.ControlPosition.TOP_RIGHT].push(fileControlDiv);
+
+}
+
+
+
+
+// modify the Block: set the poly editable, open info, when done, replace info or dele the poly
+function editBlock(event) {
+	event.stop();// 停止默认的放大行为的执行
+
+	var poly = this;
+	var jsonObjindex = getzIndex(jsonObj,poly);
+	poly.setEditable(true);
+
+//	var infoPos = new google.maps.LatLng(map.getBounds().getSouthWest().lat(),map.getBounds().getNorthEast().lng());
+
+	var addWindow = new google.maps.InfoWindow({
+			content: '<form id="item_modify"><p><label for="item_name">名称</label> <input type="text" id="item_name" required="required" value="'+htmlEncode(jsonObj.area[jsonObjindex].name)+'" /></p><p><label for="item_meta">备注</label> <textarea id="item_meta" style="height:50px;width:250px;">'+htmlEncode(jsonObj.area[jsonObjindex].info)+'</textarea></p><p><input type="submit" value="确定" id="item_acceptBtn" /> <input type="button" value="删除" id="item_deleteBtn" /> <input type="button" value="放弃" id="item_cancelBtn" /></p></form>', 
+			position: map.getBounds().getNorthEast()
+		});
+	addWindow.open(map);
+	
+	// cancel editing
+
+	google.maps.event.addListener(addWindow, 'closeclick', function(){
+
+		poly.setMap(null);
+		google.maps.event.clearInstanceListeners(poly);
+		poly = null;
+		
+		drawBlockJson(jsonObjindex,false);
+		addWindow.close();
+	    return false;
+	});
+	
+	google.maps.event.addListener(addWindow, 'domready', function(){
+		
+		$('#item_modify').bind('submit', function(){//modified
+			
+			// 删除jsonObj中的原数据，写入 jsonObj，删除被修改的区域，重画区域
+			if(!$('#item_name').val()){
+				alert('请输入名称。');
+				return false;
+			};
+		
+			// 删除指定的原图
+			deleBlockJson(jsonObjindex);
+			// 将图存入 jsonObj,并重画
+			addSubmit(poly);
+
+			addWindow.close();
+			return false;
+		});
+
+		$('#item_deleteBtn').bind('click', function() {
+			deleBlockJson(jsonObjindex);
+			addWindow.close();
+			return false;
+		});
+
+		$('#item_cancelBtn').bind('click', function() {
+			poly.setMap(null);
+			google.maps.event.clearInstanceListeners(poly);
+			poly = null;
+		
+			drawBlockJson(jsonObjindex,false);
+			addWindow.close();
+	    	return false;
+		});
+
+		$('#item_name').focus();
+	});
+}
+
+
+// add controller to load the file
+// The LoadControl adds a control to the map that
+// load the json file to the memory.
+
+
+function FileControl(controlDiv, map) {
+
+    // We set up a variable for this since we're addin
+    // event listeners later.
+    var control = this;
+
+    // Set CSS styles for the DIV containing the control
+    // Setting padding to 5 px will offset the control
+    // from the edge of the map
+    controlDiv.style.padding = '5px';
+
+    // Set CSS for the control border
+    var loadFileUI = document.createElement('div');
+    loadFileUI.style.backgroundColor = 'white';
+    loadFileUI.style.borderStyle = 'solid';
+    loadFileUI.style.borderWidth = '2px';
+    loadFileUI.style.cursor = 'pointer';
+    loadFileUI.style.textAlign = 'center';
+    loadFileUI.title = 'Click to load the Data file';
+    controlDiv.appendChild(loadFileUI);
+
+    // Set CSS for the control interior
+    var loadFileText = document.createElement('div');
+    loadFileText.style.fontFamily = 'Arial,sans-serif';
+    loadFileText.style.fontSize = '12px';
+    loadFileText.style.paddingLeft = '4px';
+    loadFileText.style.paddingRight = '4px';
+    loadFileText.innerHTML = '<b>Load Data</b>';
+    loadFileUI.appendChild(loadFileText);
+
+    // Set CSS for the save control border
+    var saveFileUI = document.createElement('div');
+    saveFileUI.style.backgroundColor = 'white';
+    saveFileUI.style.borderStyle = 'solid';
+    saveFileUI.style.borderWidth = '2px';
+    saveFileUI.style.cursor = 'pointer';
+    saveFileUI.style.textAlign = 'center';
+    saveFileUI.title = 'Click to save the Data file to disk';
+    controlDiv.appendChild(saveFileUI);
+
+    // Set CSS for the control interior
+    var saveFileText = document.createElement('div');
+    saveFileText.style.fontFamily = 'Arial,sans-serif';
+    saveFileText.style.fontSize = '12px';
+    saveFileText.style.paddingLeft = '4px';
+    saveFileText.style.paddingRight = '4px';
+    saveFileText.innerHTML = '<b>Save Data</b>';
+    saveFileUI.appendChild(saveFileText);
+
+    // Setup the click event listener for Home:
+    // simply set the map to the control's current home property.
+    google.maps.event.addDomListener(loadFileUI, 'click', function() {
+        alert('load files');
+        return false;
+    });
+
+    // Setup the click event listener for Set Home:
+    // Set the control's home to the current Map center.
+    google.maps.event.addDomListener(saveFileUI, 'click', function() {
+        var str = JsonString(jsonObj);
+		// JSONArray arr = new JSONArray(str);alert('save files');
+		var pw = new PrintWriter(new OutputStreamWriter(new FileOutputStream("hello3.txt")),true);  
+		pw.println(str);  
+　　	pw.close();  
+		
+		return false;
+    });
+}
+
+
+jQuery(function($){
+	function readJSON(json){
+		try //防止出错
+		{
+			jsonObj = jQuery.parseJSON(json);
+		}
+		catch(err){
+			alert('文件不是有效的 JSON 文件。');
+		}
+//		console && console.log(jsonObj);
+	}
+
+	// 读取文件部分
+	// Check for the various File API support.
+	if (!(window.File && window.FileReader && window.FileList)){
+		// 如果不支持 HTML5 读取文件
+		$('h1:first').after('<div class="alert alert-error"><strong>Opps!</strong> 你的浏览器似乎不支持直接读取文件。</div>');
+		$('#inputFile').attr('disabled','disabled');
+		$('#loadFileBtn').click(function(){
+			var text = prompt('请将文件内容粘贴到这里并按 Enter。','');
+			if(text){
+				$('#output').show().text(text);
+				readJSON(text);
+			}
+			return false;
+		});
+	}else{
+		// 使用 HTML5 方式读取
+		$('#loadFileBtn').click(function(){
+			$('#inputFile').click();
+			return false;
+		});
+
+		$('#inputFile').change(function(e){ //当选择一个文件的时候（事件 onchange）
+			var file = e.target.files[0]; // FileList object 是一个数组，这里只取第一项
+	//		console && console.log(file);
+
+			var reader = new FileReader();
+
+			// 读取文件完成时执行 onLoad 事件，先设置事件
+			reader.onload = function(e){
+				if(e.target.readyState == 2){
+					$('#output').show().text(e.target.result);
+					readJSON(e.target.result);
+				}else{ // 出错
+					alert('读取文件时出错：'+ e.target.error);
+				}
+			};
+
+			reader.readAsBinaryString(file);
+		});
+	}
+
+	if($.browser.chrome || $.browser.firefox){
+		$('#saveFileBtn').attr('href', 'data:text/octet-stream,' + encodeURIComponent($.toJSON(jsonObj))).attr('download', 'jsonfile.js');//download 属性定义下载的文件名
+	}else{
+		$('#saveFileBtn').hide();
+	}
+
+});
+
+
+
+
+
+	</script>
+</head>
+
+
+
+<body onload="initialize()">
+	<div class="container">
+		<p><a class="btn" id="loadFileBtn" href="javascript:void(0)">导入文件</a> <a class="btn" id="saveFileBtn" href="javascript:void(0)">导出文件</a> <input id="inputFile" type="file" class="hide" /></p>
+		<pre id="output" class="hide"></pre>
+	</div>
+
+	<div id="map_shantou" style="width:100%; height:100%"></div>
+	
+</body>
+
+</html>
