@@ -5,20 +5,29 @@
 	<meta charset="utf-8">
 	<style type="text/css">
 		html { height: 100% }
-			body { height: 100%; margin: 0px; padding: 0px }
-			#map_shantou { height: 100% }
+		body { height: 100%; margin: 0px; padding: 0px }
+			
+		#map_shantou { height: 100% }
+			
+		#info {
+        	background: #fff;
+        	padding: 5px;
+        	font-size: 14px;
+        	font-family: arial;
+    	}
 	</style>
-
+	
 	<script type="text/javascript"
 				src="https://maps.google.com/maps/api/js?sensor=false&libraries=drawing">
 	</script>
 
-	
-	<script type="text/javascript" src="jquery.min.js"></script>
+	<script src="js/jquery.min.js"></script>
+	<script src="js/jquery.json-2.4.min.js"></script>
+	<script src="js/bootstrap.min.js"></script> 
 
 	<script type="text/javascript">
 
-/*以下函数计算多边形的中心点，调用方法：Polygon.getBounds().getCenter()*/
+/*以下函数计算多边形的中心点，调用方法：Polygon.getBounds().getCenter()
 if (!google.maps.Polygon.prototype.getBounds) {
 ﻿  google.maps.Polygon.prototype.getBounds = function(latLng) {
 
@@ -36,7 +45,7 @@ if (!google.maps.Polygon.prototype.getBounds) {
 ﻿  ﻿  return bounds;
 ﻿  }
 }
-
+*/
 
 function PolygonCenter (poly) {
 	var x,y;
@@ -104,7 +113,7 @@ function drawBlockJson(index, mode){
 	var nameMarker = new google.maps.Marker({
 		position: PolygonCenter(Block),
 		map: map,
-		icon: image,
+		icon: image
 	});
 	if (mode) { Names.push(nameMarker); };
 	
@@ -154,44 +163,24 @@ function addSubmit(poly){
 }
 
 
-var str = JsonString(jsonObj);
-// JSONArray arr = new JSONArray(str);
-
-
-function JsonString (jsonObj){
-	var contentString = '{';
-	// construct mode
-	contentString += '"mode":['
-	for (var i=0; i<jsonObj.mode.length; i++){
-		contentString += '{"strokeColor":"' + jsonObj.mode[i].strokeColor + '",';
-		contentString += '"strokeOpacity":' + jsonObj.mode[i].strokeOpacity + ',';
-		contentString += '"strokeWeight":' + jsonObj.mode[i].strokeWeight + ',';
-		contentString += '"fillColor":"' + jsonObj.mode[i].fillColor + '",';
-		contentString += '"fillOpacity":' + jsonObj.mode[i].fillOpacity + '}';
-		if (i < jsonObj.mode.length-1) { contentString += ','}
-	}
-	contentString += '],'
-	// construct area
-	contentString += '"area":['
-	for (var i=0; i<jsonObj.area.length; i++){
-		contentString += '{"paths":['
-		for (var j=0; j<jsonObj.area[i].paths.length; j++){
-			contentString += '{"Lat":' + jsonObj.area[i].paths[j].Lat + ',';
-			contentString += '"Lng":' + jsonObj.area[i].paths[j].Lng + '}';
-			if (j < jsonObj.area[i].paths.length-1) { contentString += ',' };
+function jsonBound (jsonObj){
+	var x1 = jsonObj.area[0].paths[0].Lat;
+	var y1 = jsonObj.area[0].paths[0].Lng;
+	var x2 = x1, y2 = y1;
+	var x, y;
+	for (i=0; i<jsonObj.area.length; i++){
+		for (j = 0; j<jsonObj.area[i].paths.length; j++){
+			x = jsonObj.area[i].paths[j].Lat;
+			y = jsonObj.area[i].paths[j].Lng;
+			if (x < x1) {x1 = x};
+			if (x > x2) {x2 = x};
+			if (y < y1) {y1 = y};
+			if (y > y2) {y2 = y};
 		}
-		contentString += '],'
-
-		contentString += '"mode":' + jsonObj.area[i].mode + ',';
-		contentString += '"info":"' + jsonObj.area[i].info + '",';
-		contentString += '"name":"' + jsonObj.area[i].name + '",';
-		contentString += '"zIndex":' + jsonObj.area[i].zIndex + '}';
-		if (i < jsonObj.area.length-1) { contentString += ','}
 	}
-	contentString += ']}';
-
-	return contentString;
+	return true;
 }
+
 
 var map, jsonObj, Names, Blocks;
 var infoWindow;
@@ -204,16 +193,17 @@ function initialize() {
 
 "area":[
 {"paths": [{"Lat":23.355258,"Lng":116.710652},
-					 {"Lat":23.352138,"Lng":116.710639},
-					 {"Lat":23.352412,"Lng":116.716227},
-					 {"Lat":23.355317,"Lng":116.716077}],
+			{"Lat":23.352138,"Lng":116.710639},
+			{"Lat":23.352412,"Lng":116.716227},
+			{"Lat":23.355317,"Lng":116.716077}],
  "mode":0,"info":"this is first","name":"粤东信息大厦","zIndex":0},
 
-{"paths": [{"Lat":23.3657258,"Lng":116.710652},
-					 {"Lat":23.362138,"Lng":116.710639},
-					 {"Lat":23.362412,"Lng":116.716227}],
+{"paths": [{"Lat":23.36638568042305,"Lng":116.7106734576721},
+			{"Lat":23.362098602984272,"Lng":116.7106711865082},
+			{"Lat":23.362018030130056,"Lng":116.71605533862294}],
  "mode":0,"info":"this is second","name":"平东街","zIndex":0}
 ]};
+
 
 	// Construct my map
 	var latlng = new google.maps.LatLng(23.352564,116.712881);  //point of Shantou information mall
@@ -311,16 +301,15 @@ function editBlock(event) {
 	var jsonObjindex = getzIndex(jsonObj,poly);
 	poly.setEditable(true);
 
-	var infoPos = new google.maps.LatLng(map.getBounds().getSouthWest().lat(),map.getBounds().getNorthEast().lng());
-
+//	var infoPos = new google.maps.LatLng(map.getBounds().getSouthWest().lat(),map.getBounds().getNorthEast().lng());
+	
 	var addWindow = new google.maps.InfoWindow({
 			content: '<form id="item_modify"><p><label for="item_name">名称</label> <input type="text" id="item_name" required="required" value="'+htmlEncode(jsonObj.area[jsonObjindex].name)+'" /></p><p><label for="item_meta">备注</label> <textarea id="item_meta" style="height:50px;width:250px;">'+htmlEncode(jsonObj.area[jsonObjindex].info)+'</textarea></p><p><input type="submit" value="确定" id="item_acceptBtn" /> <input type="button" value="删除" id="item_deleteBtn" /> <input type="button" value="放弃" id="item_cancelBtn" /></p></form>', 
-			position: PolygonCenter(poly)
+			position: map.getBounds().getNorthEast()
 		});
 	addWindow.open(map);
 	
-	// cancel editing
-
+	// cancel edit
 	google.maps.event.addListener(addWindow, 'closeclick', function(){
 
 		poly.setMap(null);
@@ -369,9 +358,39 @@ function editBlock(event) {
 
 		$('#item_name').focus();
 	});
+
 }
 
+// modify the Block: set the poly editable, open info, when done, replace info or dele the poly
+/*function editBlock2(event) {
+	event.stop();// 停止默认的放大行为的执行
 
+	var poly = this;
+	var jsonObjindex = getzIndex(jsonObj,poly);
+	poly.setEditable(true);
+
+    map.controls[google.maps.ControlPosition.TOP_LEFT].push(
+            document.getElementById('info'));
+    document.getElementById('name').value = htmlEncode(jsonObj.area[jsonObjindex].name);
+    document.getElementById('meta').value = htmlEncode(jsonObj.area[jsonObjindex].info);
+
+	google.maps.event.addDomListener(document.getElementById('item_acceptBtn'), 'click', function (){
+		if(!$('#name').val()){
+			alert('请输入名称。');
+			return false;
+		};
+		
+		// 删除指定的原图
+		deleBlockJson(jsonObjindex);
+		// 将图存入 jsonObj,并重画
+		addSubmit(poly);
+	    map.controls[google.maps.ControlPosition.TOP_LEFT].pop();
+
+		return false;
+		
+	});    
+}
+*/
 // add controller to load the file
 // The LoadControl adds a control to the map that
 // load the json file to the memory.
@@ -429,18 +448,24 @@ function FileControl(controlDiv, map) {
     // Setup the click event listener for Home:
     // simply set the map to the control's current home property.
     google.maps.event.addDomListener(loadFileUI, 'click', function() {
-        alert('load files');
+        var jsontext = prompt('Paste the JSON here');
+        if(jsontext){
+        	var obj = $.evalJSON(jsontext);
+			console.log(obj);
+        	// do sth...
+        }
         return false;
     });
 
     // Setup the click event listener for Set Home:
     // Set the control's home to the current Map center.
     google.maps.event.addDomListener(saveFileUI, 'click', function() {
-        alert('save files');
+        prompt('Output', $.toJSON(jsonObj));
+		// JSONArray arr = new JSONArray(str);alert('save files');
+	    //var filename = "d:\login.log";
         return false;
     });
 }
-
 
 	</script>
 </head>
@@ -449,7 +474,12 @@ function FileControl(controlDiv, map) {
 
 <body onload="initialize()">
 	<div id="map_shantou" style="width:100%; height:100%"></div>
-	
+/*    <div id="info">
+      <p> 名称: <input type="text" id="name"> </p>
+      <p> 备注: <input type="text" id="meta"> </p>
+      <p> <input type="button" value="确定" id="item_acceptBtn" /> <input type="button" value="删除" id="item_deleteBtn" /> <input type="button" value="放弃" id="item_cancelBtn" /> </p>
+    </div>
+*/
 </body>
 
 </html>
