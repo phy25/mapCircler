@@ -132,48 +132,49 @@ function getCurrentRegionElenemtzIndex(jsonObj,regionOrder,poly){
 
 
 // mode=true 为新建整个单元，
-//  在指定的map上根据json数据画出指定区域regionOrder的指定单元index，并加入双击响应程序，jsonObj中的zIndex已经初始化
+//  在指定的map上根据json数据画出指定区域regionOrder的指定单元index，jsonObj中的zIndex已经初始化
 //  需要维护Blocks和Names两个数组。
-// mode = false 为重画单元，这时只是重画存在Blocks和Names中的数据
+// mode = false 为重画单元，将重画的内容替换Blocks和Names中的数据
+// 最后全部加入双击响应程序
 function drawBlockJson(map, jsonObj, regionOrder, index, mode){
 	if (index >= jsonObj.regions[regionOrder].elements.length) return false;
-
 	
-	if (mode) {
-		var indexObj = jsonObj.regions[regionOrder].elements[index];
-		var path=[];
-		for (var i =0; i < indexObj.paths.length; i++) {
-			path.push(new google.maps.LatLng(indexObj.paths[i].Lat, indexObj.paths[i].Lng));
-		}
+	var indexObj = jsonObj.regions[regionOrder].elements[index];
+	var path=[];
+	for (var i =0; i < indexObj.paths.length; i++) {
+		path.push(new google.maps.LatLng(indexObj.paths[i].Lat, indexObj.paths[i].Lng));
+	}
 
-		//initial zIndex,unique，新建时初始值已经初始化，不需要index填入
-		var Block = new google.maps.Polygon({
-			paths: path,
-			strokeColor: jsonObj.mode[indexObj.mode].strokeColor,
-			strokeOpacity: jsonObj.mode[indexObj.mode].strokeOpacity,
-			strokeWeight: jsonObj.mode[indexObj.mode].strokeWeight,
-			fillColor: jsonObj.mode[indexObj.mode].fillColor,
-			fillOpacity: jsonObj.mode[indexObj.mode].fillOpactiy,
-			zIndex: indexObj.zIndex
-		});
-		Block.setMap(map);
+	//initial zIndex,unique，新建时初始值已经初始化，不需要index填入
+	var Block = new google.maps.Polygon({
+		paths: path,
+		strokeColor: jsonObj.mode[indexObj.mode].strokeColor,
+		strokeOpacity: jsonObj.mode[indexObj.mode].strokeOpacity,
+		strokeWeight: jsonObj.mode[indexObj.mode].strokeWeight,
+		fillColor: jsonObj.mode[indexObj.mode].fillColor,
+		fillOpacity: jsonObj.mode[indexObj.mode].fillOpactiy,
+		zIndex: indexObj.zIndex
+	});
+	Block.setMap(map);
+	
+	// Add a listener for the click event
+	google.maps.event.addListener(Block, 'dblclick', editBlock);
+
+	var image = 'http://chart.googleapis.com/chart?chst=d_text_outline&chld=FFFFFF|15|l|000000|_|'+ indexObj.name;
+	var nameMarker = new google.maps.Marker({
+		position: PolygonCenter(Block),
+		map: map,
+		icon: image
+	});
+
+	if (mode){
 		Blocks.push(Block);
-		
-		// Add a listener for the click event
-		google.maps.event.addListener(Block, 'dblclick', editBlock);
-
-		var image = 'http://chart.googleapis.com/chart?chst=d_text_outline&chld=FFFFFF|15|l|000000|_|'+ indexObj.name;
-		var nameMarker = new google.maps.Marker({
-			position: PolygonCenter(Block),
-			map: map,
-			icon: image
-		});
 		Names.push(nameMarker); 
-	} else { 
-		Blocks[index].setMap(map);
-		Names[index].setMap(map);
-	} ;
- 
+	} else {
+		Blocks.splice(index,1,Block);
+		Names.splice(index,1,nameMarker);
+	}; 
+
 }
 
 // 删除指定地图map的指定单元，需删除json、Blocks、Names中的数据，并将地图上单元和相关程序删除。
@@ -262,7 +263,7 @@ function createLayer(map, jsonObj, layerOrder, mode){
 var map, jsonObj;
 var Frames, Names, Blocks;
 var currentLayer, currentRegionOrder, defaultCenter;
-var infoWindow;
+var editMode; // 双击时，true 可以编辑各个块，false 进入内部
 
 // jsonObj 如果出错均指向开始的那组数据；361
 // regions:[region1:{elements:[element1, ]}, region2, region3, ]
@@ -393,7 +394,7 @@ function initialize() {
 // modify the Block: set the poly editable, open info, when done, replace info or dele the poly
 function editBlock(event) {
 	event.stop();// 停止默认的放大行为的执行
-
+	
 	var poly = this;
 	var elementIndex = getCurrentRegionElenemtzIndex(jsonObj,currentRegionOrder,poly);
 	poly.setEditable(true);
@@ -409,7 +410,7 @@ function editBlock(event) {
 			return false;
 		};
 		
-			// 删除指定的原图
+		// 删除指定的原图
 		deleBlockJson(map, jsonObj, currentRegionOrder,elementIndex);
 		// 将图存入 jsonObj,并重画
 		addSubmit(currentRegionOrder,poly);
@@ -417,12 +418,12 @@ function editBlock(event) {
 	    document.getElementById("info").style.display="none";
 		return false;
 	});
-
+	// 删除改变的图，重画原图。
 	google.maps.event.addDomListenerOnce(document.getElementById('item_cancelBtn'), 'click', function (){
 		poly.setMap(null);
 		google.maps.event.clearInstanceListeners(poly);
 		Poly = null;
-		
+
 		drawBlockJson(map, jsonObj, currentRegionOrder,elementIndex,false);
 	    document.getElementById("info").style.display="none";
 		
@@ -437,6 +438,7 @@ function editBlock(event) {
 
 
 	$('#item_name').focus();
+	
 }
 
 
@@ -511,6 +513,27 @@ function FileControl(controlDiv, map) {
     editFrameText.style.paddingRight = '4px';
     editFrameText.innerHTML = '<b>Edit Frame</b>';
     editFrameUI.appendChild(editFrameText);
+    
+    editMode = false;
+    var editModeUI = document.createElement('div');
+    editModeUI.style.backgroundColor = 'white';
+    editModeUI.style.borderStyle = 'solid';
+    editModeUI.style.borderWidth = '2px';
+    editModeUI.style.cursor = 'pointer';
+    editModeUI.style.textAlign = 'center';
+    editModeUI.title = 'Click to Enter the Blocks';
+    controlDiv.appendChild(editModeUI);
+
+    // Set CSS for the control interior
+    var editModeText = document.createElement('div');
+    editModeText.style.fontFamily = 'Arial,sans-serif';
+    editModeText.style.fontSize = '12px';
+    editModeText.style.paddingLeft = '4px';
+    editModeText.style.paddingRight = '4px';
+    editModeText.innerHTML = '<b>Enter Mode</b>';
+    editModeUI.appendChild(editModeText);
+
+
     // Setup the click event listener for Home:
     // simply set the map to the control's current home property.
     google.maps.event.addDomListener(loadFileUI, 'click', function() {
@@ -541,6 +564,24 @@ function FileControl(controlDiv, map) {
 
         return false;
     });
+
+    google.maps.event.addDomListener(editModeUI, 'click', function() {
+ 		if (editMode == true){
+    		editMode = false;
+    		editModeUI.style.backgroundColor = 'white';
+    		editModeUI.title = 'Click to Enter the Blocks';
+    		editModeText.innerHTML = '<b>Enter Mode</b>';
+    	} else{
+     		editMode = true;
+    		editModeUI.style.backgroundColor = 'grey'; 
+    		editModeUI.title = 'Click to Edit the Blocks';  
+    		editModeText.innerHTML = '<b>Edit Mode</b>';		
+    	}
+
+        return false;
+    });
+
+
 }
 	</script>
 </head>
