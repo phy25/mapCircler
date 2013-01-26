@@ -21,29 +21,33 @@
 
     <script type="text/javascript" class="showcase">
 $(function(){
-    $.contextMenu({
-        selector: '#context-menu-one', 
+    $.contextMenu({ 
+        selector: '#context-menu-one',
         callback: function(key, options) {
             var func = 
                 {
                     'load': function(){
-                        alert('load!')
+                        // $("#context-menu-one").contextMenu("hide");
+
+                        alert('load!');
                     },
-                    'save': function()
-                        {alert('save!')
+                    'save': function(){
+                        alert('save!')
                     },
                     'enter':function(){
-                        {alert('enter!')
+                        alert('enter!')
                     },
-
+                    'return':function(){
+                        alert('return!');
+                    },
                     'edit':function(){
-                        {alert('edit!')
+                        alert('edit!')
                     },
                     'new':function(){
-                        {alert('new!')
+                        alert('new!')
                     }
                 };
-            func[key] && func[key]();//if(func[key]){func();}
+            return func[key] && func[key]();//if(func[key]){func();}
 
         },
         items: {
