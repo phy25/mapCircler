@@ -63,11 +63,11 @@ function PolygonCenter (poly) {
 	return new google.maps.LatLng(x, y);
 }
 
-function getRegionOrder(jsonObj,regionName){
+function getRegionOrder(jsonObj,ID){
 	for (var k=0; k<jsonObj.regions.length; k++){
-		if (jsonObj.regions[k].name == regionName) break;
+		if (jsonObj.regions[k].ID == ID) break;
 	}
-	if (k == jsonObj.regions.length) {return 0}
+	if (k == jsonObj.regions.length) {return null}
 	else {return k} 
 }
 
@@ -125,7 +125,7 @@ function htmlEncode(str) {
 //查找指定多边形的位置，用zIndex作为索引值 
 function getCurrentRegionElenemtzIndex(jsonObj,regionOrder,poly){
 	for (var i = 0; i < jsonObj.regions[regionOrder].elements.length; i++) {
-		if (poly.zIndex == jsonObj.regions[regionOrder].elements[i].zIndex) return i;
+		if (poly.zIndex == jsonObj.regions[regionOrder].elements[i].ID) return i;
 	}
 	return null; 
 }
@@ -153,7 +153,7 @@ function drawBlockJson(map, jsonObj, regionOrder, index, mode){
 		strokeWeight: jsonObj.mode[indexObj.mode].strokeWeight,
 		fillColor: jsonObj.mode[indexObj.mode].fillColor,
 		fillOpacity: jsonObj.mode[indexObj.mode].fillOpactiy,
-		zIndex: indexObj.zIndex
+		zIndex: indexObj.ID
 	});
 	Block.setMap(map);
 	
@@ -199,10 +199,10 @@ function addSubmit(regionOrder,poly){
 	// 将 图 存入 jsonObj
 	var elementLength = jsonObj.regions[regionOrder].elements.length;
 
-	if (elementLength == 0) { poly.zIndex = 0; }
-	else { poly.zIndex = jsonObj.regions[regionOrder].elements[elementLength-1].zIndex+1; };
+	jsonObj.ID++;
+	poly.zIndex = jsonObj.ID;
 
-	jsonObj.regions[regionOrder].elements.push({"mode":0,"info":$('#item_meta').val(),"name":$('#item_name').val(), "zIndex":poly.zIndex});
+	jsonObj.regions[regionOrder].elements.push({"mode":0,"info":$('#item_meta').val(),"name":$('#item_name').val(), "ID":jsonObj.ID});
 		
 	var path = poly.getPath();
 
@@ -219,11 +219,28 @@ function addSubmit(regionOrder,poly){
 
 	// 画出jsonObj中的区域并初始化
 	drawBlockJson(map, jsonObj, regionOrder,elementLength,true);
+
 }
 
-// 在map上画出jsonObj中某个layer的所有框架
+// 是否需要更新子区域
+function checkChildID(jsonObj, oldID, regionOrder, elementIndex){
+	var indexObj = jsonObj.regions[regionOrder].elements[elementIndex];
+	var newID = indexObj.ID;
+	
+	for (i=0; i<jsonObj.regions.length; i++){
+		if (jsonObj.regions[i].ID == oldID){
+			jsonObj.regions[i].ID = newID;
+			jsonObj.regions[i].paths = [];
+			for (j=0; j<indexObj.paths.length; j++){
+				jsonObj.regions[i].paths.push(indexObj.paths[j]);
+			}
+			break;
+		}
+	}
+}
+// 在map上画出jsonObj中某个layer的所有框架,作废
 function drawFrames(map, jsonObj, layer){
-	Frames = [];
+	OutFrame = [];
 	for (var j=0; j<jsonObj.regions.length; j++){
 		
 		var indexObj = jsonObj.regions[j];
@@ -247,36 +264,67 @@ function drawFrames(map, jsonObj, layer){
 	}
 }
 // 画指定区域，mode = true: 建立新的区域; mode = false: 重画该区域
-function createLayer(map, jsonObj, layerOrder, mode){
-	if (layerOrder >= jsonObj.regions.length) return false;
+function createRegion(map, jsonObj, regionOrder, mode){
+	if (regionOrder >= jsonObj.regions.length) return false;
 
 	if (mode) {
 		Names = [];
 		Blocks = [];
 	}
-	for (var j = 0; j < jsonObj.regions[layerOrder].elements.length; j++) { 
-		jsonObj.regions[layerOrder].elements[j].zIndex = j;	//初始化zIndex
-		drawBlockJson(map, jsonObj, layerOrder, j, mode);
+	for (var j = 0; j < jsonObj.regions[regionOrder].elements.length; j++) { 
+		//不需初始化ID，原始数据中已经有。	
+		drawBlockJson(map, jsonObj, regionOrder, j, mode);
 	};
+
+// 画外框
+	var indexObj = jsonObj.regions[regionOrder];
+	var path=[];
+	for (var i =0; i < indexObj.paths.length; i++) {
+		path.push(new google.maps.LatLng(indexObj.paths[i].Lat, indexObj.paths[i].Lng));
+	}
+	OutFrame = new google.maps.Polygon({
+		paths: path,
+		strokeColor: jsonObj.mode[indexObj.mode].strokeColor,
+		strokeOpacity: jsonObj.mode[indexObj.mode].strokeOpacity,
+		strokeWeight: jsonObj.mode[indexObj.mode].strokeWeight,
+		fillColor: jsonObj.mode[indexObj.mode].fillColor,
+		fillOpacity: jsonObj.mode[indexObj.mode].fillOpactiy,
+	});
+	OutFrame.setMap(map);
+
+	map.setZoom(jsonObj.zoom[jsonObj.regions[regionOrder].layer]);
+}
+
+function deleteCurrentRegion(map){
+	OutFrame.setMap(null);
+	for (i=0; i<Blocks.length; i++){
+		var p = Blocks[i];
+		google.maps.event.clearInstanceListeners(p);
+		p.setMap(null);
+	}
+	for (i=0; i<Names.length; i++){
+		Names[i].setMap(null);
+	}
 }
 
 var map, jsonObj;
-var Frames, Names, Blocks;
+var OutFrame, Names, Blocks;
 var currentLayer, currentRegionOrder, defaultCenter;
 var editMode; // 双击时，true 可以编辑各个块，false 进入内部
+var fileControlDiv;
 
 // jsonObj 如果出错均指向开始的那组数据；361
 // regions:[region1:{elements:[element1, ]}, region2, region3, ]
 // 每个region区域包含多个element单元，区域的layer属性代表不同的层。
 // 如layer=1是第一层，代表城市中的区，区包含多个街道；对街道细分居委，街道就是layer=2的区域，下面有多个街道。
-
-	jsonObj = {"defaultRegion":"龙湖",
+// ID 是固定分配了，一个region的ID可以等于某个element的ID，这时这个region就是这个element的细化。ID没有0值。
+	jsonObj = {"currentID":2,"ID":5,
 "mode":[{"strokeColor":"#FF0000", "strokeOpacity":0.8, "strokeWeight": 2, "fillColor":"#FF0000", "fillOpacity": 0.35},
 		{"strokeColor":"#FF0000", "strokeOpacity":0.8, "strokeWeight": 1, "fillColor":"#FFFFFF", "fillOpacity": 0}],
 "zoom":[13,15],
 
 "regions":[
-{"layer":1, "name":"龙湖", "mode":1,"info":"this is first","zIndex":0,
+{"layer":1, "name":"龙湖", "mode":1,"info":"this is first","ID":2,
 	"paths": [{"Lat":23.366289276203684,"Lng":116.69370043902586},
 			{"Lat":23.358973538724012,"Lng":116.69387974077995},
 			{"Lat":23.35882802626967,"Lng":116.68959584673303},
@@ -291,14 +339,35 @@ var editMode; // 双击时，true 可以编辑各个块，false 进入内部
 			{"Lat":23.352138,"Lng":116.710639},
 			{"Lat":23.352412,"Lng":116.716227},
 			{"Lat":23.355317,"Lng":116.716077}],
- "mode":0,"info":"this is first","name":"粤东信息大厦","zIndex":0},
+ "mode":0,"info":"this is first","name":"粤东信息大厦","ID":4},
 
 	{"paths": [{"Lat":23.36638568042305,"Lng":116.7106734576721},
 			{"Lat":23.362098602984272,"Lng":116.7106711865082},
 			{"Lat":23.362018030130056,"Lng":116.71605533862294}],
- "mode":0,"info":"this is second","name":"平东街","zIndex":0}
-]} // elements
+ "mode":0,"info":"this is second","name":"平东街","ID":5}
+]}, // elements
+{"layer":0, "name":"汕头市", "mode":1,"info":"this is first","ID":1,
+	"paths": [{"Lat":23.366289276203684,"Lng":116.69370043902586},
+			{"Lat":23.358973538724012,"Lng":116.69387974077995},
+			{"Lat":23.35882802626967,"Lng":116.68959584673303},
+			{"Lat":23.353966744963618,"Lng":116.69252937089539},
+			{"Lat":23.351178275762003,"Lng":116.69230244033815},
+			{"Lat":23.35095971453859,"Lng":116.69940167980963},
+			{"Lat":23.351940999956668,"Lng":116.70566082006837},
+			{"Lat":23.352412,"Lng":116.716227},
+			{"Lat":23.366387667050873,"Lng":116.71590533862309}],
+ "elements":[
+	{"paths": [{"Lat":23.355258,"Lng":116.710652},
+			{"Lat":23.352138,"Lng":116.710639},
+			{"Lat":23.352412,"Lng":116.716227},
+			{"Lat":23.355317,"Lng":116.716077}],
+ "mode":0,"info":"this is first","name":"粤东信息大厦","ID":2},
 
+	{"paths": [{"Lat":23.36638568042305,"Lng":116.7106734576721},
+			{"Lat":23.362098602984272,"Lng":116.7106711865082},
+			{"Lat":23.362018030130056,"Lng":116.71605533862294}],
+ "mode":0,"info":"this is second","name":"平东街","ID":3}
+]}
 ] // regions
 };
 
@@ -308,7 +377,7 @@ defaultCenter = new google.maps.LatLng(23.352564,116.712881);  //point of Shanto
 function initialize() {
 
 // Construct my map
-	currentRegionOrder = getRegionOrder(jsonObj, jsonObj.defaultRegion);
+	currentRegionOrder = getRegionOrder(jsonObj, jsonObj.currentID);
 
 	var latlng = regionCenter(jsonObj, currentRegionOrder);  //point of Shantou information mall
 	var myOptions = {
@@ -377,15 +446,15 @@ function initialize() {
 // Create the DIV to hold the control and
     // call the fileControl() constructor passing
     // in this DIV.
-    var fileControlDiv = document.createElement('div');
-    var fileControl = new FileControl(fileControlDiv, map);
+    fileControlDiv = document.createElement('div');
     fileControlDiv.index = 1;
+
+    var fileControl = new FileControl(fileControlDiv, map);
+    
     map.controls[google.maps.ControlPosition.TOP_RIGHT].push(fileControlDiv);
 
 // Construct the layer
-	currentLayer = jsonObj.regions[currentRegionOrder].layer;
-	drawFrames(map, jsonObj, currentLayer);
-	createLayer(map, jsonObj, currentRegionOrder, true);
+	createRegion(map, jsonObj, currentRegionOrder, true);
 
 }
 
@@ -394,9 +463,11 @@ function initialize() {
 // modify the Block: set the poly editable, open info, when done, replace info or dele the poly
 function editBlock(event) {
 	event.stop();// 停止默认的放大行为的执行
-	
 	var poly = this;
 	var elementIndex = getCurrentRegionElenemtzIndex(jsonObj,currentRegionOrder,poly);
+
+	if (editMode){
+
 	poly.setEditable(true);
 
     
@@ -411,11 +482,17 @@ function editBlock(event) {
 		};
 		
 		// 删除指定的原图
+		var oldID = jsonObj.regions[currentRegionOrder].elements[elementIndex].ID;
 		deleBlockJson(map, jsonObj, currentRegionOrder,elementIndex);
 		// 将图存入 jsonObj,并重画
 		addSubmit(currentRegionOrder,poly);
+		elementIndex = jsonObj.regions[currentRegionOrder].elements.length -1;
+		checkChildID(jsonObj, oldID, currentRegionOrder, elementIndex);
 
 	    document.getElementById("info").style.display="none";
+
+	    google.maps.event.trigger(editModeUI, 'click');
+
 		return false;
 	});
 	// 删除改变的图，重画原图。
@@ -438,7 +515,14 @@ function editBlock(event) {
 
 
 	$('#item_name').focus();
-	
+	} else {
+		var newRegionOrder = getRegionOrder(jsonObj, poly.zIndex);
+		if (newRegionOrder == null) return;
+		deleteCurrentRegion(map);
+		currentRegionOrder = newRegionOrder;
+		createRegion(map, jsonObj, currentRegionOrder, true);
+	}
+
 }
 
 
@@ -496,23 +580,23 @@ function FileControl(controlDiv, map) {
     saveFileText.innerHTML = '<b>Save Data</b>';
     saveFileUI.appendChild(saveFileText);
 
-    var editFrameUI = document.createElement('div');
-    editFrameUI.style.backgroundColor = 'white';
-    editFrameUI.style.borderStyle = 'solid';
-    editFrameUI.style.borderWidth = '2px';
-    editFrameUI.style.cursor = 'pointer';
-    editFrameUI.style.textAlign = 'center';
-    editFrameUI.title = 'Click to edit the Frame';
-    controlDiv.appendChild(editFrameUI);
+    var upperRegionUI = document.createElement('div');
+    upperRegionUI.style.backgroundColor = 'white';
+    upperRegionUI.style.borderStyle = 'solid';
+    upperRegionUI.style.borderWidth = '2px';
+    upperRegionUI.style.cursor = 'pointer';
+    upperRegionUI.style.textAlign = 'center';
+    upperRegionUI.title = 'Click to return to upper Region';
+    controlDiv.appendChild(upperRegionUI);
 
     // Set CSS for the control interior
-    var editFrameText = document.createElement('div');
-    editFrameText.style.fontFamily = 'Arial,sans-serif';
-    editFrameText.style.fontSize = '12px';
-    editFrameText.style.paddingLeft = '4px';
-    editFrameText.style.paddingRight = '4px';
-    editFrameText.innerHTML = '<b>Edit Frame</b>';
-    editFrameUI.appendChild(editFrameText);
+    var upperRegionText = document.createElement('div');
+    upperRegionText.style.fontFamily = 'Arial,sans-serif';
+    upperRegionText.style.fontSize = '12px';
+    upperRegionText.style.paddingLeft = '4px';
+    upperRegionText.style.paddingRight = '4px';
+    upperRegionText.innerHTML = '<b>Upper Region</b>';
+    upperRegionUI.appendChild(upperRegionText);
     
     editMode = false;
     var editModeUI = document.createElement('div');
@@ -557,16 +641,31 @@ function FileControl(controlDiv, map) {
     });
 
 
-    google.maps.event.addDomListener(editFrameUI, 'click', function() {
-   		map.setZoom(jsonObj.zoom[jsonObj.regions[currentRegionOrder].layer-1]);
-   		var poly = Frames[currentRegionOrder];
-   		poly.setEditable(true);
+    google.maps.event.addDomListener(upperRegionUI, 'click', function() {
+    	var newlayer = jsonObj.regions[currentRegionOrder].layer;
+    	var ID = jsonObj.regions[currentRegionOrder].ID;
+    	var newRegionOrder = null;
 
+    	if (newlayer == 0) return;
+    	for (j=0,newlayer--;  j < jsonObj.regions.length; j++){
+    		if (jsonObj.regions[j].layer != newlayer) continue;
+    		for (i=0; i < jsonObj.regions[j].elements.length; i++){
+    			if (jsonObj.regions[j].elements[i].ID == ID) {
+    				newRegionOrder = j;
+    				break;
+    			}
+    		}
+    	}
+ 
+ 		if (newRegionOrder == null) return;
+		deleteCurrentRegion(map);
+		currentRegionOrder = newRegionOrder;
+		createRegion(map, jsonObj, currentRegionOrder, true);
         return false;
     });
 
     google.maps.event.addDomListener(editModeUI, 'click', function() {
- 		if (editMode == true){
+ 		if (editMode){
     		editMode = false;
     		editModeUI.style.backgroundColor = 'white';
     		editModeUI.title = 'Click to Enter the Blocks';
