@@ -18,7 +18,7 @@
 	</style>
 	
 	<script type="text/javascript"
-				src="http://ditu.google.cn/maps/api/js?sensor=false&libraries=drawing">
+				src="http://ditu.google.cn/maps/api/js?sensor=false&v=3.exp&libraries=drawing">
 	</script>
 
 	<script src="js/jquery.min.js"></script>
@@ -30,26 +30,8 @@
     <link href="src/jquery.contextMenu.css" rel="stylesheet" type="text/css" />
 
 	<script type="text/javascript">
-/*以下函数计算多边形的中心点，调用方法：Polygon.getBounds().getCenter()
-if (!google.maps.Polygon.prototype.getBounds) {
-﻿  google.maps.Polygon.prototype.getBounds = function(latLng) {
 
-﻿  ﻿  var bounds = new google.maps.LatLngBounds();
-﻿  ﻿  var paths = this.getPaths();
-﻿  ﻿  var path;
-﻿  ﻿  
-﻿  ﻿  for (var p = 0; p < paths.getLength(); p++) {
-﻿  ﻿  ﻿  path = paths.getAt(p);
-﻿  ﻿  ﻿  for (var i = 0; i < path.getLength(); i++) {
-﻿  ﻿  ﻿  ﻿  bounds.extend(path.getAt(i));
-﻿  ﻿  ﻿  }
-﻿  ﻿  }
-
-﻿  ﻿  return bounds;
-﻿  }
-}
-*/
-
+// 计算多边形的中心点
 function PolygonCenter (poly) {
 	var x,y;
 
@@ -88,26 +70,6 @@ function regionCenter (jsonObj,regionOrder){
 		if (x > x2) {x2 = x};
 		if (y < y1) {y1 = y};
 		if (y > y2) {y2 = y};
-	}
-
-	return new google.maps.LatLng( (x1+x2)/2, (y1+y2)/2);
-}
-
-function regionCenter3 (jsonObj,regionOrder){
-	var x1 = jsonObj.regions[regionOrder].elements[0].paths[0].Lat;
-	var y1 = jsonObj.regions[regionOrder].elements[0].paths[0].Lng;
-	var x2 = x1, y2 = y1;
-	var x, y;
-	
-	for (i=0; i<jsonObj.regions[regionOrder].elements.length; i++){
-		for (j = 0; j<jsonObj.regions[regionOrder].elements[i].paths.length; j++){
-			x = jsonObj.regions[regionOrder].elements[i].paths[j].Lat;
-			y = jsonObj.regions[regionOrder].elements[i].paths[j].Lng;
-			if (x < x1) {x1 = x};
-			if (x > x2) {x2 = x};
-			if (y < y1) {y1 = y};
-			if (y > y2) {y2 = y};
-		}
 	}
 
 	return new google.maps.LatLng( (x1+x2)/2, (y1+y2)/2);
@@ -162,6 +124,7 @@ function drawBlockJson(map, jsonObj, regionOrder, index, mode){
 	
 	// Add a listener for the click event
 	google.maps.event.addListener(Block, 'dblclick', editBlock);
+	google.maps.event.addListener(Block, "rightclick", rightClickHandlerPoly);
 
 	var image = 'http://chart.googleapis.com/chart?chst=d_text_outline&chld=FFFFFF|15|l|000000|_|'+ indexObj.name;
 	var nameMarker = new google.maps.Marker({
@@ -169,6 +132,8 @@ function drawBlockJson(map, jsonObj, regionOrder, index, mode){
 		map: map,
 		icon: image
 	});
+	
+	google.maps.event.addListener(nameMarker, "rightclick", rightClickHandler);
 
 	if (mode){
 		Blocks.push(Block);
@@ -241,31 +206,7 @@ function checkChildID(jsonObj, oldID, regionOrder, elementIndex){
 		}
 	}
 }
-// 在map上画出jsonObj中某个layer的所有框架,作废
-function drawFrames(map, jsonObj, layer){
-	OutFrame = [];
-	for (var j=0; j<jsonObj.regions.length; j++){
-		
-		var indexObj = jsonObj.regions[j];
-		if (indexObj.layer != layer) continue;
-		var path=[];
-		for (var i =0; i < indexObj.paths.length; i++) {
-			path.push(new google.maps.LatLng(indexObj.paths[i].Lat, indexObj.paths[i].Lng));
-		}
 
-		//initial zIndex,unique，新建时初始值已经初始化，不需要index填入
-		var Block = new google.maps.Polygon({
-			paths: path,
-			strokeColor: jsonObj.mode[indexObj.mode].strokeColor,
-			strokeOpacity: jsonObj.mode[indexObj.mode].strokeOpacity,
-			strokeWeight: jsonObj.mode[indexObj.mode].strokeWeight,
-			fillColor: jsonObj.mode[indexObj.mode].fillColor,
-			fillOpacity: jsonObj.mode[indexObj.mode].fillOpactiy,
-		});
-		Block.setMap(map);
-		Frames.push(Block);
-	}
-}
 // 画指定区域，mode = true: 建立新的区域; mode = false: 重画该区域
 function createRegion(map, jsonObj, regionOrder, mode){
 	if (regionOrder >= jsonObj.regions.length) return false;
@@ -310,11 +251,19 @@ function deleteCurrentRegion(map){
 	}
 }
 
+MapOverlay.prototype = new google.maps.OverlayView();
+MapOverlay.prototype.onAdd = function() { }
+MapOverlay.prototype.onRemove = function() { }
+MapOverlay.prototype.draw = function() { }
+
+function MapOverlay(map) { this.setMap(map); }
+
 var map, jsonObj;
 var OutFrame, Names, Blocks;
 var currentLayer, currentRegionOrder, defaultCenter;
-var editMode; // 双击时，true 可以编辑各个块，false 进入内部
 var fileControlDiv;
+var drawingManager;
+var mapOverlay;
 
 // jsonObj 如果出错均指向开始的那组数据；361
 // regions:[region1:{elements:[element1, ]}, region2, region3, ]
@@ -391,9 +340,9 @@ function initialize() {
 	map = new google.maps.Map(document.getElementById("map_shantou"),myOptions);
 
 // drawing tools on the map，draw a new poly
-	var drawingManager = new google.maps.drawing.DrawingManager({
+	drawingManager = new google.maps.drawing.DrawingManager({
 		drawingMode: null,
-		drawingControl: true,
+		drawingControl: false,
 		drawingControlOptions: {
 			position: google.maps.ControlPosition.TOP_LEFT,
 			drawingModes: [
@@ -446,43 +395,76 @@ function initialize() {
 // create interactive window
 	map.controls[google.maps.ControlPosition.TOP_LEFT].push(document.getElementById('info'));
 
-// Create the DIV to hold the control and
-    // call the fileControl() constructor passing
-    // in this DIV.
-    fileControlDiv = document.createElement('div');
-    fileControlDiv.index = 1;
-
-    var fileControl = new FileControl(fileControlDiv, map);
-    
-    map.controls[google.maps.ControlPosition.TOP_RIGHT].push(fileControlDiv);
-
 // Construct the layer
 	createRegion(map, jsonObj, currentRegionOrder, true);
 
 // 处理菜单
     $.contextMenu({ 
         selector: '#map_shantou',
-        callback: function(key, options) {
-            var func = {
+        build: function($trigger, e){
+	console.log(e);
+	return {
+	callback: function(key, options) {
+        	var func = {
                     'load': function(){
-                        // $("#context-menu-one").contextMenu("hide");
-
-                        alert('load!');
+                        $("#map_shantou").contextMenu("hide");
+        		var jsontext = prompt('Paste the JSON here');
+        		if(jsontext){
+        			var obj = $.evalJSON(jsontext);
+				console.log(obj);
+				// do sth...
+				initialize();
+       	 		}
+        		return false;
                     },
                     'save': function(){
-                        alert('save!')
+			$("#map_shantou").contextMenu("hide");
+        		prompt('Output', $.toJSON(jsonObj));
+			// JSONArray arr = new JSONArray(str);alert('save files');
+	    		//var filename = "d:\login.log";
                     },
                     'enter':function(){
-                        alert('enter!')
+                        $("#map_shantou").contextMenu("hide");
+			var poly = e.originalThis;
+			var newRegionOrder = getRegionOrder(jsonObj, poly.zIndex);
+			if (newRegionOrder == null) return;
+			deleteCurrentRegion(map);
+			currentRegionOrder = newRegionOrder;
+			createRegion(map, jsonObj, currentRegionOrder, true);
+
                     },
                     'return':function(){
-                        alert('return!')
-					},
+			$("#map_shantou").contextMenu("hide");
+			var newlayer = jsonObj.regions[currentRegionOrder].layer;
+    			var ID = jsonObj.regions[currentRegionOrder].ID;
+    			var newRegionOrder = null;
+
+    			if (newlayer == 0) return;
+    			for (j=0,newlayer--;  j < jsonObj.regions.length; j++){
+    				if (jsonObj.regions[j].layer != newlayer) continue;
+    				for (i=0; i < jsonObj.regions[j].elements.length; i++){
+    					if (jsonObj.regions[j].elements[i].ID == ID) {
+    						newRegionOrder = j;
+    						break;
+    					}
+    				}
+    			}
+ 
+ 			if (newRegionOrder == null) return;
+			deleteCurrentRegion(map);
+			currentRegionOrder = newRegionOrder;
+			createRegion(map, jsonObj, currentRegionOrder, true);
+        		return false;
+			},
                     'edit':function(){
-                        alert('edit!')
+			$("#map_shantou").contextMenu("hide");
+			if (e.eventName == 'polygon') editBlock.call(e.originalThis);
+                        
                     },
                     'new':function(){
-                        alert('new!')
+			$("#map_shantou").contextMenu("hide");
+			drawingManager.setDrawingMode("polygon");
+
                     }
                 };
             return func[key] && func[key]();//if(func[key]){func();}
@@ -497,38 +479,71 @@ function initialize() {
             "edit": {name: "编辑本单元", icon: "edit"},
             "new": {name: "新建单元", icon: "add"}
         }
+	}}
     });
     
-    google.maps.event.addListener(map, "rightclick", function(e){
-    	var ev = new jQuery.Event('contextmenu');
+    google.maps.event.addListener(map, "rightclick", rightClickHandler);
 
-	    var p = mapOverlay.getProjection().fromLatLngToContainerPixel(e.latLng);
+	mapOverlay = new MapOverlay(map);
+}
 
-	    ev.pageX = p.x;
-	    ev.pageY = p.y;
-	    
+function rightClickHandlerPoly(e){
+	var ev = new jQuery.Event('contextmenu');
+	
+	if(e.pixel){
+		ev.pageX = e.pixel.x;
+		ev.pageY = e.pixel.y;
+	}else if(e.Ja){
+		ev.pageX = e.Ja.pageX;
+		ev.pageY = e.Ja.pageY;	
+	}else{
+		var p = mapOverlay.getProjection().fromLatLngToContainerPixel(e.latLng);
+
+	    	ev.pageX = p.x;
+	    	ev.pageY = p.y;
+		if(!ev.pageX) window.console ? console.error('Cursor position not found!') : alert('Cursor position not found!');
+	}
 	    // contextMenuEvent = e;
 
-	    $('#map_shantou').trigger(ev, [e.latLng]);
-    });
-	MapOverlay.prototype = new google.maps.OverlayView();
-	MapOverlay.prototype.onAdd = function() { }
-	MapOverlay.prototype.onRemove = function() { }
-	MapOverlay.prototype.draw = function() { }
+	ev.originalThis = this;
+	ev.latLng = e.latLng;
+	ev.eventName = 'polygon';
 
-	function MapOverlay(map) { this.setMap(map); }
-	var mapOverlay = new MapOverlay(map);
+	$('#map_shantou').trigger(ev);
+}
+
+function rightClickHandler(e){
+    	// console.log(e);
+	var ev = new jQuery.Event('contextmenu');
+	
+	if(e.pixel){
+		ev.pageX = e.pixel.x;
+		ev.pageY = e.pixel.y;
+	}else if(e.Ja){
+		ev.pageX = e.Ja.pageX;
+		ev.pageY = e.Ja.pageY;	
+	}else{
+		var p = mapOverlay.getProjection().fromLatLngToContainerPixel(e.latLng);
+
+	    	ev.pageX = p.x;
+	    	ev.pageY = p.y;
+		if(!ev.pageX) window.console ? console.error('Cursor position not found!') : alert('Cursor position not found!');
+	}
+	    // contextMenuEvent = e;
+
+	ev.originalThis = this;
+	ev.latLng = e.latLng;	
+	
+	$('#map_shantou').trigger(ev);
 }
 
 
 
 // modify the Block: set the poly editable, open info, when done, replace info or dele the poly
 function editBlock(event) {
-	event.stop();// 停止默认的放大行为的执行
+	event && event.stop();// 停止默认的放大行为的执行
 	var poly = this;
 	var elementIndex = getCurrentRegionElenemtzIndex(jsonObj,currentRegionOrder,poly);
-
-	if (editMode){
 
 	poly.setEditable(true);
 
@@ -577,173 +592,11 @@ function editBlock(event) {
 
 
 	$('#item_name').focus();
-	} else {
-		var newRegionOrder = getRegionOrder(jsonObj, poly.zIndex);
-		if (newRegionOrder == null) return;
-		deleteCurrentRegion(map);
-		currentRegionOrder = newRegionOrder;
-		createRegion(map, jsonObj, currentRegionOrder, true);
-	}
+	
 
 }
 
 
-// add controller to load the file
-// The LoadControl adds a control to the map that
-// load the json file to the memory.
-
-
-function FileControl(controlDiv, map) {
-
-    // We set up a variable for this since we're addin
-    // event listeners later.
-    var control = this;
-
-    // Set CSS styles for the DIV containing the control
-    // Setting padding to 5 px will offset the control
-    // from the edge of the map
-    controlDiv.style.padding = '5px';
-
-    // Set CSS for the control border
-    var loadFileUI = document.createElement('div');
-    loadFileUI.style.backgroundColor = 'white';
-    loadFileUI.style.borderStyle = 'solid';
-    loadFileUI.style.borderWidth = '2px';
-    loadFileUI.style.cursor = 'pointer';
-    loadFileUI.style.textAlign = 'center';
-    loadFileUI.title = 'Click to load the Data file';
-    controlDiv.appendChild(loadFileUI);
-
-    // Set CSS for the control interior
-    var loadFileText = document.createElement('div');
-    loadFileText.style.fontFamily = 'Arial,sans-serif';
-    loadFileText.style.fontSize = '12px';
-    loadFileText.style.paddingLeft = '4px';
-    loadFileText.style.paddingRight = '4px';
-    loadFileText.innerHTML = '<b>Load Data</b>';
-    loadFileUI.appendChild(loadFileText);
-
-    // Set CSS for the save control border
-    var saveFileUI = document.createElement('div');
-    saveFileUI.style.backgroundColor = 'white';
-    saveFileUI.style.borderStyle = 'solid';
-    saveFileUI.style.borderWidth = '2px';
-    saveFileUI.style.cursor = 'pointer';
-    saveFileUI.style.textAlign = 'center';
-    saveFileUI.title = 'Click to save the Data file to disk';
-    controlDiv.appendChild(saveFileUI);
-
-    // Set CSS for the control interior
-    var saveFileText = document.createElement('div');
-    saveFileText.style.fontFamily = 'Arial,sans-serif';
-    saveFileText.style.fontSize = '12px';
-    saveFileText.style.paddingLeft = '4px';
-    saveFileText.style.paddingRight = '4px';
-    saveFileText.innerHTML = '<b>Save Data</b>';
-    saveFileUI.appendChild(saveFileText);
-
-    var upperRegionUI = document.createElement('div');
-    upperRegionUI.style.backgroundColor = 'white';
-    upperRegionUI.style.borderStyle = 'solid';
-    upperRegionUI.style.borderWidth = '2px';
-    upperRegionUI.style.cursor = 'pointer';
-    upperRegionUI.style.textAlign = 'center';
-    upperRegionUI.title = 'Click to return to upper Region';
-    controlDiv.appendChild(upperRegionUI);
-
-    // Set CSS for the control interior
-    var upperRegionText = document.createElement('div');
-    upperRegionText.style.fontFamily = 'Arial,sans-serif';
-    upperRegionText.style.fontSize = '12px';
-    upperRegionText.style.paddingLeft = '4px';
-    upperRegionText.style.paddingRight = '4px';
-    upperRegionText.innerHTML = '<b>Upper Region</b>';
-    upperRegionUI.appendChild(upperRegionText);
-    
-    editMode = false;
-    var editModeUI = document.createElement('div');
-    editModeUI.style.backgroundColor = 'white';
-    editModeUI.style.borderStyle = 'solid';
-    editModeUI.style.borderWidth = '2px';
-    editModeUI.style.cursor = 'pointer';
-    editModeUI.style.textAlign = 'center';
-    editModeUI.title = 'Click to Enter the Blocks';
-    controlDiv.appendChild(editModeUI);
-
-    // Set CSS for the control interior
-    var editModeText = document.createElement('div');
-    editModeText.style.fontFamily = 'Arial,sans-serif';
-    editModeText.style.fontSize = '12px';
-    editModeText.style.paddingLeft = '4px';
-    editModeText.style.paddingRight = '4px';
-    editModeText.innerHTML = '<b>Enter Mode</b>';
-    editModeUI.appendChild(editModeText);
-
-
-    // Setup the click event listener for Home:
-    // simply set the map to the control's current home property.
-    google.maps.event.addDomListener(loadFileUI, 'click', function() {
-        var jsontext = prompt('Paste the JSON here');
-        if(jsontext){
-        	var obj = $.evalJSON(jsontext);
-			console.log(obj);
-// do sth...
-			initialize();
-        }
-        return false;
-    });
-
-    // Setup the click event listener for Set Home:
-    // Set the control's home to the current Map center.
-    google.maps.event.addDomListener(saveFileUI, 'click', function() {
-        prompt('Output', $.toJSON(jsonObj));
-		// JSONArray arr = new JSONArray(str);alert('save files');
-	    //var filename = "d:\login.log";
-        return false;
-    });
-
-
-    google.maps.event.addDomListener(upperRegionUI, 'click', function() {
-    	var newlayer = jsonObj.regions[currentRegionOrder].layer;
-    	var ID = jsonObj.regions[currentRegionOrder].ID;
-    	var newRegionOrder = null;
-
-    	if (newlayer == 0) return;
-    	for (j=0,newlayer--;  j < jsonObj.regions.length; j++){
-    		if (jsonObj.regions[j].layer != newlayer) continue;
-    		for (i=0; i < jsonObj.regions[j].elements.length; i++){
-    			if (jsonObj.regions[j].elements[i].ID == ID) {
-    				newRegionOrder = j;
-    				break;
-    			}
-    		}
-    	}
- 
- 		if (newRegionOrder == null) return;
-		deleteCurrentRegion(map);
-		currentRegionOrder = newRegionOrder;
-		createRegion(map, jsonObj, currentRegionOrder, true);
-        return false;
-    });
-
-    google.maps.event.addDomListener(editModeUI, 'click', function() {
- 		if (editMode){
-    		editMode = false;
-    		editModeUI.style.backgroundColor = 'white';
-    		editModeUI.title = 'Click to Enter the Blocks';
-    		editModeText.innerHTML = '<b>Enter Mode</b>';
-    	} else{
-     		editMode = true;
-    		editModeUI.style.backgroundColor = 'grey'; 
-    		editModeUI.title = 'Click to Edit the Blocks';  
-    		editModeText.innerHTML = '<b>Edit Mode</b>';		
-    	}
-
-        return false;
-    });
-
-
-}
 	</script>
 </head>
 
