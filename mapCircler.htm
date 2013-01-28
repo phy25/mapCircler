@@ -462,9 +462,11 @@ function initialize() {
 			},
                     'edit':function(){
 			$("#map_shantou").contextMenu("hide");
-			$("#map_shantou").contextMenu(false);
-			if (e.eventName == 'polygon') editBlock.call(e.originalThis);
-                        
+			
+			if (e.eventName == 'polygon'){
+				$("#map_shantou").contextMenu(false);
+				editBlock.call(e.originalThis);
+                        }
                     },
                     'new':function(){
 			$("#map_shantou").contextMenu("hide");
