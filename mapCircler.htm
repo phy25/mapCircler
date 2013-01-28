@@ -123,7 +123,7 @@ function drawBlockJson(map, jsonObj, regionOrder, index, mode){
 	Block.setMap(map);
 	
 	// Add a listener for the click event
-	google.maps.event.addListener(Block, 'dblclick', editBlock);
+	// google.maps.event.addListener(Block, 'dblclick', editBlock);
 	google.maps.event.addListener(Block, "rightclick", rightClickHandlerPoly);
 
 	var image = 'http://chart.googleapis.com/chart?chst=d_text_outline&chld=FFFFFF|15|l|000000|_|'+ indexObj.name;
@@ -235,7 +235,7 @@ function createRegion(map, jsonObj, regionOrder, mode){
 		fillOpacity: jsonObj.mode[indexObj.mode].fillOpactiy,
 	});
 	OutFrame.setMap(map);
-
+	google.maps.event.addListener(OutFrame, "rightclick", rightClickHandler);
 	map.setZoom(jsonObj.zoom[jsonObj.regions[regionOrder].layer]);
 }
 
@@ -367,6 +367,7 @@ function initialize() {
 			};
 			addSubmit(currentRegionOrder,poly);
 	    	document.getElementById("info").style.display="none";
+			$("#map_shantou").contextMenu(true);
 			return false;
 		});
 
@@ -376,6 +377,7 @@ function initialize() {
 			poly = null;
 			// 关闭对话窗口
 	    	document.getElementById("info").style.display="none";
+		$("#map_shantou").contextMenu(true);
 			return false;
 		});
 
@@ -385,6 +387,7 @@ function initialize() {
 			poly = null;
 			// 关闭对话窗口
 	    	document.getElementById("info").style.display="none";
+		$("#map_shantou").contextMenu(true);
 			return false;
 		});
 
@@ -405,7 +408,8 @@ function initialize() {
 	console.log(e);
 	return {
 	callback: function(key, options) {
-        	var func = {
+		       	
+		var func = {
                     'load': function(){
                         $("#map_shantou").contextMenu("hide");
         		var jsontext = prompt('Paste the JSON here');
@@ -458,13 +462,14 @@ function initialize() {
 			},
                     'edit':function(){
 			$("#map_shantou").contextMenu("hide");
+			$("#map_shantou").contextMenu(false);
 			if (e.eventName == 'polygon') editBlock.call(e.originalThis);
                         
                     },
                     'new':function(){
 			$("#map_shantou").contextMenu("hide");
+			$("#map_shantou").contextMenu(false);
 			drawingManager.setDrawingMode("polygon");
-
                     }
                 };
             return func[key] && func[key]();//if(func[key]){func();}
@@ -567,9 +572,7 @@ function editBlock(event) {
 		checkChildID(jsonObj, oldID, currentRegionOrder, elementIndex);
 
 	    document.getElementById("info").style.display="none";
-
-	    google.maps.event.trigger(editModeUI, 'click');
-
+		$("#map_shantou").contextMenu(true);
 		return false;
 	});
 	// 删除改变的图，重画原图。
@@ -580,13 +583,14 @@ function editBlock(event) {
 
 		drawBlockJson(map, jsonObj, currentRegionOrder,elementIndex,false);
 	    document.getElementById("info").style.display="none";
-		
+		$("#map_shantou").contextMenu(true);
 		return false;
 	});
 
 	google.maps.event.addDomListenerOnce(document.getElementById('item_deleteBtn'), 'click', function (){
 		deleBlockJson(map, jsonObj, currentRegionOrder,elementIndex);
 	    document.getElementById("info").style.display="none";
+		$("#map_shantou").contextMenu(true);
 		return false;
 	});
 
