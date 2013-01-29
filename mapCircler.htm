@@ -237,6 +237,7 @@ function createRegion(map, jsonObj, regionOrder, mode){
 	OutFrame.setMap(map);
 	google.maps.event.addListener(OutFrame, "rightclick", rightClickHandler);
 	map.setZoom(jsonObj.zoom[jsonObj.regions[regionOrder].layer]);
+	map.setCenter(regionCenter(jsonObj,regionOrder));
 }
 
 function deleteCurrentRegion(map){
@@ -272,8 +273,8 @@ var mapOverlay;
 // ID 是固定分配了，一个region的ID可以等于某个element的ID，这时这个region就是这个element的细化。ID没有0值。
 	jsonObj = {"currentID":2,"ID":5,
 "mode":[{"strokeColor":"#FF0000", "strokeOpacity":0.8, "strokeWeight": 2, "fillColor":"#FF0000", "fillOpacity": 0.35},
-		{"strokeColor":"#FF0000", "strokeOpacity":0.8, "strokeWeight": 1, "fillColor":"#FFFFFF", "fillOpacity": 0}],
-"zoom":[13,15],
+		{"strokeColor":"#FF00FF", "strokeOpacity":0.8, "strokeWeight": 1, "fillColor":"#FFFFFF", "fillOpacity": 0}],
+"zoom":[13,15,17],
 
 "regions":[
 {"layer":1, "name":"龙湖", "mode":1,"info":"this is first","ID":2,
@@ -322,6 +323,29 @@ var mapOverlay;
 ]}
 ] // regions
 };
+
+
+jsonObj = {"currentID":1,"ID":5,
+"mode":[{"strokeColor":"#FF0000", "strokeOpacity":0.8, "strokeWeight": 2, "fillColor":"#FF0000", "fillOpacity": 0.35},
+		{"strokeColor":"#0000FF", "strokeOpacity":0.8, "strokeWeight": 1, "fillColor":"#FFFFFF", "fillOpacity": 0}],
+"zoom":[13,15,17],
+
+"regions":[
+{"layer":0, "name":"汕头市", "mode":1,"info":"this is first","ID":1,
+	"paths": [{"Lat":23.366289276203684,"Lng":116.69370043902586},
+			{"Lat":23.358973538724012,"Lng":116.69387974077995},
+			{"Lat":23.35882802626967,"Lng":116.68959584673303},
+			{"Lat":23.353966744963618,"Lng":116.69252937089539},
+			{"Lat":23.351178275762003,"Lng":116.69230244033815},
+			{"Lat":23.35095971453859,"Lng":116.69940167980963},
+			{"Lat":23.351940999956668,"Lng":116.70566082006837},
+			{"Lat":23.352412,"Lng":116.716227},
+			{"Lat":23.366387667050873,"Lng":116.71590533862309}],
+ "elements":[
+]}
+] // regions
+};
+
 
 defaultCenter = new google.maps.LatLng(23.352564,116.712881);  //point of Shantou information mall
 
@@ -429,9 +453,13 @@ function initialize() {
                     },
                     'enter':function(){
                         $("#map_shantou").contextMenu("hide");
+			if (e.eventName != 'polygon') return;			
 			var poly = e.originalThis;
 			var newRegionOrder = getRegionOrder(jsonObj, poly.zIndex);
-			if (newRegionOrder == null) return;
+			if (newRegionOrder == null) {
+				if (confirm("没有下一层,增加吗")==false)return;				
+				newRegionOrder = createNextRegion(poly);
+			}
 			deleteCurrentRegion(map);
 			currentRegionOrder = newRegionOrder;
 			createRegion(map, jsonObj, currentRegionOrder, true);
@@ -545,6 +573,20 @@ function rightClickHandler(e){
 }
 
 
+function createNextRegion(poly){
+	var elementOrder = getCurrentRegionElenemtzIndex(jsonObj,currentRegionOrder,poly);	
+	if (elementOrder == null) return;
+	var thisElement = jsonObj.regions[currentRegionOrder].elements[elementOrder];
+	var newlayer = jsonObj.regions[currentRegionOrder].layer	+1;
+	var newRegionOrder = jsonObj.regions.length;	
+	jsonObj.regions.push({"layer":newlayer, "name":thisElement.name, "mode":1,"info":"","ID":thisElement.ID});
+	jsonObj.regions[newRegionOrder].paths = [];
+	for (i=0; i<thisElement.paths.length; i++){
+		jsonObj.regions[newRegionOrder].paths.push(thisElement.paths[i]);
+	}
+	jsonObj.regions[newRegionOrder].elements = [];
+	return newRegionOrder;
+}
 
 // modify the Block: set the poly editable, open info, when done, replace info or dele the poly
 function editBlock(event) {
