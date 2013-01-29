@@ -86,7 +86,7 @@ function getRegionOrder(jsonObj,ID){
 	if (k == jsonObj.regions.length) {return null}
 	else {return k} 
 }
-//查找指定多边形的位置，用zIndex作为索引值 
+// 查找指定多边形的位置，用zIndex作为索引值 
 function getCurrentRegionElenemtzIndex(jsonObj,regionOrder,poly){
 	for (var i = 0; i < jsonObj.regions[regionOrder].elements.length; i++) {
 		if (poly.zIndex == jsonObj.regions[regionOrder].elements[i].ID) return i;
@@ -188,11 +188,13 @@ function addSubmit(regionOrder,poly){
 
 }
 
-// 修改了单元后，检查是否需要更新其下属的区域相关内容，如果需要更新内容。
-function checkChildID(jsonObj, oldID, regionOrder, elementIndex){
+// 修改了单元后，modify = true 检查是否需要更新其下属的区域相关内容，如果需要则更新内容。
+// modify = false 删去其下属单元或并入上级单元。
+
+function checkChildID(jsonObj, oldID, regionOrder, elementIndex,modify){
 	var indexObj = jsonObj.regions[regionOrder].elements[elementIndex];
 	var newID = indexObj.ID;
-	
+    if (modify) {
 	for (i=0; i<jsonObj.regions.length; i++){
 		if (jsonObj.regions[i].ID == oldID){
 			jsonObj.regions[i].ID = newID;
@@ -203,6 +205,23 @@ function checkChildID(jsonObj, oldID, regionOrder, elementIndex){
 			break;
 		}
 	}
+    } else {
+	var found = false, deleteRegion = false;
+	for (i=0; i<jsonObj.regions.length; i++){
+		if (jsonObj.regions[i].ID == oldID){
+			if (found) { 
+				found = true;
+				if (confirm("删除下属单元，不保留在上一级区域中")) deleteRegion = true;
+			}
+    			if (deleteRegion) {
+				jsonObj.regions.splice(i,i+1);
+				i--;
+    			} else {
+				
+    			}
+		}
+	}
+    }
 }
 
 // 画指定区域，mode = true: 建立新的区域; mode = false: 重画该区域
@@ -249,6 +268,45 @@ function deleteCurrentRegion(map){
 		Names[i].setMap(null);
 	}
 }
+
+// 读入文件装入
+function readFile(){
+	if (!(window.File && window.FileReader && window.FileList)){
+		// 如果不支持 HTML5 读取文件
+		var text = prompt('请将文件内容粘贴到这里并按 Enter。','');
+		if(text){
+			jsonObj = $.evalJSON(jsontext);
+			deleteCurrentRegion(map);			
+			initialize();
+		}
+	}else{
+		// 使用 HTML5 方式读取
+		var $f = $('<input type="file" />').css('display', 'none');		
+		var change = function(e){ //当选择一个文件的时候（事件 onchange）
+			var file = e.target.files[0]; // FileList object 是一个数组，这里只取第一项
+			console && console.log(file);
+
+			var reader = new FileReader();
+
+			// 读取文件完成时执行 onLoad 事件，先设置事件
+			reader.onload = function(e){
+				if(e.target.readyState == 2){
+					jsonObj = $.evalJSON(e.target.result);
+					deleteCurrentRegion(map);
+					initialize();
+				}else{ // 出错
+					alert('读取文件时出错：'+ e.target.error);
+				}
+			};
+
+			reader.readAsText(file);
+		};
+		$f.change(change).appendTo('body').click();
+	}
+
+}
+
+
 
 MapOverlay.prototype = new google.maps.OverlayView();
 MapOverlay.prototype.onAdd = function() { }
@@ -349,7 +407,6 @@ defaultCenter = new google.maps.LatLng(23.352564,116.712881);  //point of Shanto
 
 
 function initialize() {
-
 // Construct my map
 	currentRegionOrder = getRegionOrder(jsonObj, jsonObj.currentID);
 
@@ -430,17 +487,10 @@ function initialize() {
 	console.log(e);
 	return {
 	callback: function(key, options) {
-		       	
 		var func = {
                     'load': function(){
                         $("#map_shantou").contextMenu("hide");
-        		var jsontext = prompt('Paste the JSON here');
-        		if(jsontext){
-        			var obj = $.evalJSON(jsontext);
-				console.log(obj);
-				// do sth...
-				initialize();
-       	 		}
+			readFile();
         		return false;
                     },
                     'save': function(){
@@ -455,7 +505,7 @@ function initialize() {
 			var poly = e.originalThis;
 			var newRegionOrder = getRegionOrder(jsonObj, poly.zIndex);
 			if (newRegionOrder == null) {
-				if (confirm("没有下一层,增加吗")==false)return;				
+				if (confirm("没有下一层，增加吗？")==false)return;				
 				newRegionOrder = createNextRegion(poly);
 			}
 			deleteCurrentRegion(map);
@@ -503,8 +553,9 @@ function initialize() {
             return func[key] && func[key]();//if(func[key]){func();}
         },
         items: {
-            "load": {name: "Load File"},
-            "save": {name: "Save File"},
+
+            "save": {name: "保存文件"},
+            "load": {name: "打开文件"},
             "sep1": "---------",
             "enter": {name: "进入下一层"},
             "return": {name: "返回上一层"},
@@ -612,7 +663,7 @@ function editBlock(event) {
 		// 将图存入 jsonObj,并重画
 		addSubmit(currentRegionOrder,poly);
 		elementIndex = jsonObj.regions[currentRegionOrder].elements.length -1;
-		checkChildID(jsonObj, oldID, currentRegionOrder, elementIndex);
+		checkChildID(jsonObj, oldID, currentRegionOrder, elementIndex, true);
 
 	    document.getElementById("info").style.display="none";
 		$("#map_shantou").contextMenu(true);
@@ -631,6 +682,7 @@ function editBlock(event) {
 	});
 
 	google.maps.event.addDomListenerOnce(document.getElementById('item_deleteBtn'), 'click', function (){
+		checkChildID(jsonObj, oldID, currentRegionOrder, elementIndex, false);
 		deleBlockJson(map, jsonObj, currentRegionOrder,elementIndex);
 	    document.getElementById("info").style.display="none";
 		$("#map_shantou").contextMenu(true);
