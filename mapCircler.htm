@@ -48,14 +48,6 @@ function PolygonCenter (poly) {
 	return new google.maps.LatLng(x, y);
 }
 
-function getRegionOrder(jsonObj,ID){
-	for (var k=0; k<jsonObj.regions.length; k++){
-		if (jsonObj.regions[k].ID == ID) break;
-	}
-	if (k == jsonObj.regions.length) {return null}
-	else {return k} 
-}
-
 function regionCenter (jsonObj,regionOrder){
 
 	var x1 = jsonObj.regions[regionOrder].paths[0].Lat;
@@ -86,7 +78,14 @@ function htmlEncode(str) {
 	 s = s.replace(/\"/g, "&quot;");
 	 return s;
 }
-
+// 查给定ID的单元所属区域序号
+function getRegionOrder(jsonObj,ID){
+	for (var k=0; k<jsonObj.regions.length; k++){
+		if (jsonObj.regions[k].ID == ID) break;
+	}
+	if (k == jsonObj.regions.length) {return null}
+	else {return k} 
+}
 //查找指定多边形的位置，用zIndex作为索引值 
 function getCurrentRegionElenemtzIndex(jsonObj,regionOrder,poly){
 	for (var i = 0; i < jsonObj.regions[regionOrder].elements.length; i++) {
@@ -94,7 +93,6 @@ function getCurrentRegionElenemtzIndex(jsonObj,regionOrder,poly){
 	}
 	return null; 
 }
-
 
 // mode=true 为新建整个单元，
 //  在指定的map上根据json数据画出指定区域regionOrder的指定单元index，jsonObj中的zIndex已经初始化
@@ -190,7 +188,7 @@ function addSubmit(regionOrder,poly){
 
 }
 
-// 是否需要更新子区域
+// 修改了单元后，检查是否需要更新其下属的区域相关内容，如果需要更新内容。
 function checkChildID(jsonObj, oldID, regionOrder, elementIndex){
 	var indexObj = jsonObj.regions[regionOrder].elements[elementIndex];
 	var newID = indexObj.ID;
@@ -239,7 +237,7 @@ function createRegion(map, jsonObj, regionOrder, mode){
 	map.setZoom(jsonObj.zoom[jsonObj.regions[regionOrder].layer]);
 	map.setCenter(regionCenter(jsonObj,regionOrder));
 }
-
+// 在地图上删除当前区域，但不删除json的内容。
 function deleteCurrentRegion(map){
 	OutFrame.setMap(null);
 	for (i=0; i<Blocks.length; i++){
@@ -522,6 +520,7 @@ function initialize() {
 	mapOverlay = new MapOverlay(map);
 }
 
+// 右键处理程序，对应在多边形上点击
 function rightClickHandlerPoly(e){
 	var ev = new jQuery.Event('contextmenu');
 	
@@ -546,7 +545,7 @@ function rightClickHandlerPoly(e){
 
 	$('#map_shantou').trigger(ev);
 }
-
+// 右键处理程序，对应在其他区域上点击
 function rightClickHandler(e){
     	// console.log(e);
 	var ev = new jQuery.Event('contextmenu');
@@ -572,7 +571,7 @@ function rightClickHandler(e){
 	$('#map_shantou').trigger(ev);
 }
 
-
+// 生成下一级区域初始化数据
 function createNextRegion(poly){
 	var elementOrder = getCurrentRegionElenemtzIndex(jsonObj,currentRegionOrder,poly);	
 	if (elementOrder == null) return;
@@ -640,8 +639,6 @@ function editBlock(event) {
 
 
 	$('#item_name').focus();
-	
-
 }
 
 
