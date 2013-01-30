@@ -243,7 +243,7 @@ function createRegion(map, jsonObj, regionOrder, mode){
 	for (var i =0; i < indexObj.paths.length; i++) {
 		path.push(new google.maps.LatLng(indexObj.paths[i].Lat, indexObj.paths[i].Lng));
 	}
-	OutFrame = new google.maps.Polygon({
+	outFrame = new google.maps.Polygon({
 		paths: path,
 		strokeColor: jsonObj.mode[indexObj.mode].strokeColor,
 		strokeOpacity: jsonObj.mode[indexObj.mode].strokeOpacity,
@@ -251,14 +251,15 @@ function createRegion(map, jsonObj, regionOrder, mode){
 		fillColor: jsonObj.mode[indexObj.mode].fillColor,
 		fillOpacity: jsonObj.mode[indexObj.mode].fillOpactiy,
 	});
-	OutFrame.setMap(map);
-	google.maps.event.addListener(OutFrame, "rightclick", rightClickHandler);
+	outFrame.setMap(map);
+	google.maps.event.addListener(outFrame, "rightclick", rightClickHandler);
 	map.setZoom(jsonObj.zoom[jsonObj.regions[regionOrder].layer]);
 	map.setCenter(regionCenter(jsonObj,regionOrder));
 }
 // 在地图上删除当前区域，但不删除json的内容。
 function deleteCurrentRegion(map){
-	OutFrame.setMap(null);
+	outFrame.setMap(null);
+	google.maps.event.clearInstanceListeners(outFrame);
 	for (i=0; i<Blocks.length; i++){
 		var p = Blocks[i];
 		google.maps.event.clearInstanceListeners(p);
@@ -293,7 +294,8 @@ function readFile(){
 				if(e.target.readyState == 2){
 					jsonObj = $.evalJSON(e.target.result);
 					deleteCurrentRegion(map);
-					initialize();
+					currentRegionOrder = getRegionOrder(jsonObj, jsonObj.currentID);
+					createRegion(map, jsonObj, currentRegionOrder, true);
 				}else{ // 出错
 					alert('读取文件时出错：'+ e.target.error);
 				}
@@ -316,7 +318,7 @@ MapOverlay.prototype.draw = function() { }
 function MapOverlay(map) { this.setMap(map); }
 
 var map, jsonObj;
-var OutFrame, Names, Blocks;
+var outFrame, Names, Blocks;
 var currentLayer, currentRegionOrder, defaultCenter;
 var fileControlDiv;
 var drawingManager;
