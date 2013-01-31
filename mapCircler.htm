@@ -168,7 +168,7 @@ function addSubmit(regionOrder,poly){
 	jsonObj.ID++;
 	poly.zIndex = jsonObj.ID;
 
-	jsonObj.regions[regionOrder].elements.push({"mode":0,"info":$('#item_meta').val(),"name":$('#item_name').val(), "ID":jsonObj.ID});
+	jsonObj.regions[regionOrder].elements.push({"mode":0,"info":$('#item_meta').text(),"name":$('#item_name').val(), "ID":jsonObj.ID});
 		
 	var path = poly.getPath();
 
@@ -278,7 +278,8 @@ function readFile(){
 		if(text){
 			jsonObj = $.evalJSON(jsontext);
 			deleteCurrentRegion(map);			
-			initialize();
+			currentRegionOrder = getRegionOrder(jsonObj, jsonObj.currentID);
+			createRegion(map, jsonObj, currentRegionOrder, true);
 		}
 	}else{
 		// 使用 HTML5 方式读取
@@ -308,7 +309,19 @@ function readFile(){
 
 }
 
-
+// 导出文件部分
+function saveFile(){ // text, filename	
+	if($.browser.chrome){
+		var filename = prompt('请输入文件名');
+		var $h = $('<div style="position:absolute;z-index:10;top:0;left:0;width:50px;height:30px;"></div>'), $a = $('<a />').attr('href', 'data:text/octet-stream,' + encodeURIComponent($.toJSON(jsonObj))).attr('download', filename+'.mcf').text('拖动或点击').click(function(){$h.remove();});
+		$h.append($a).appendTo('body');
+		//download 属性定义下载的文件名
+	}else{
+		var $h = $('<div style="position:absolute;z-index:10;top:0;left:0;width:50px;height:30px;"><textarea style="width:40px;height:30px;"></textarea> <a href="javascript:void(0)">OK</a></div>');
+		$h.find('a').click(function(){$h.remove();return false;});		
+		$h.appendTo('body').find('textarea').text($.toJSON(jsonObj)).focus();
+	}
+}
 
 MapOverlay.prototype = new google.maps.OverlayView();
 MapOverlay.prototype.onAdd = function() { }
@@ -437,8 +450,8 @@ function initialize() {
 		drawingManager.setDrawingMode(null);
 		poly.setEditable(true);
 
-   		document.getElementById('item_name').value = '名字';
-    	document.getElementById('item_meta').value = '备注';
+   		$('#item_name').val('');
+    		$('#item_meta').text('');
 		document.getElementById("info").style.display="";
 	
 		google.maps.event.addDomListenerOnce(document.getElementById('item_acceptBtn'), 'click', function (){
@@ -493,13 +506,12 @@ function initialize() {
                     'load': function(){
                         $("#map_shantou").contextMenu("hide");
 			readFile();
-        		return false;
+        		// return false;
                     },
                     'save': function(){
 			$("#map_shantou").contextMenu("hide");
-        		prompt('Output', $.toJSON(jsonObj));
-			// JSONArray arr = new JSONArray(str);alert('save files');
-	    		//var filename = "d:\login.log";
+        		saveFile();
+			// return false;
                     },
                     'enter':function(){
                         $("#map_shantou").contextMenu("hide");
@@ -555,9 +567,8 @@ function initialize() {
             return func[key] && func[key]();//if(func[key]){func();}
         },
         items: {
-
+	    "load": {name: "打开文件"},
             "save": {name: "保存文件"},
-            "load": {name: "打开文件"},
             "sep1": "---------",
             "enter": {name: "进入下一层"},
             "return": {name: "返回上一层"},
@@ -649,9 +660,9 @@ function editBlock(event) {
 	poly.setEditable(true);
 
     
-    document.getElementById('item_name').value = htmlEncode(jsonObj.regions[currentRegionOrder].elements[elementIndex].name);
-    document.getElementById('item_meta').value = htmlEncode(jsonObj.regions[currentRegionOrder].elements[elementIndex].info);
-	document.getElementById("info").style.display="";
+    $('#item_name').val(htmlEncode(jsonObj.regions[currentRegionOrder].elements[elementIndex].name));
+    $('#item_meta').text(htmlEncode(jsonObj.regions[currentRegionOrder].elements[elementIndex].info));
+	$("#info").show();
 	
 	google.maps.event.addDomListenerOnce(document.getElementById('item_acceptBtn'), 'click', function (){
 		if(!$('#item_name').val()){
@@ -684,7 +695,7 @@ function editBlock(event) {
 	});
 
 	google.maps.event.addDomListenerOnce(document.getElementById('item_deleteBtn'), 'click', function (){
-		checkChildID(jsonObj, oldID, currentRegionOrder, elementIndex, false);
+		checkChildID(jsonObj, oldID, currentRegionOrder, elementIndex, false);//BUG***
 		deleBlockJson(map, jsonObj, currentRegionOrder,elementIndex);
 	    document.getElementById("info").style.display="none";
 		$("#map_shantou").contextMenu(true);
@@ -704,8 +715,8 @@ function editBlock(event) {
 <body onload="initialize()">
 	<div id="map_shantou" style="width:100%; height:100%"></div>
     <div id="info" style="display:none; ">
-      <p> 名称: <input type="text" id="item_name" style="width:200px;"> </p>
-      <p> 备注: <input type="text" id="item_meta" style="height:80px;width:200px;"> </p>
+      <p> <!--名称: --> <input type="text" id="item_name" style="width:200px;" placeholder="名称" /></p>
+      <p><!--备注: --> <textarea id="item_meta" style="height:80px;width:200px;" placeholder="备注"></textarea></p>
       <p> <input type="button" value="确定" id="item_acceptBtn" /> <input type="button" value="删除" id="item_deleteBtn" /> <input type="button" value="放弃" id="item_cancelBtn" /> </p>
     </div>
 </body>
