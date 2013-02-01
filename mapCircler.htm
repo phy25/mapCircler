@@ -86,7 +86,7 @@ function getRegionOrder(jsonObj,ID){
 	else {return k} 
 }
 // 查找指定多边形的位置，用zIndex作为索引值 
-function getCurrentRegionElenemtzIndex(jsonObj,regionOrder,poly){
+function getCurrentRegionElenemtzIndex(jsonObj, regionOrder, poly){
 	for (var i = 0; i < jsonObj.regions[regionOrder].elements.length; i++) {
 		if (poly.zIndex == jsonObj.regions[regionOrder].elements[i].ID) return i;
 	}
@@ -331,18 +331,17 @@ function MapOverlay(map) { this.setMap(map); }
 
 var map, jsonObj;
 var outFrame, Names, Blocks;
-var currentLayer, currentRegionOrder, defaultCenter;
-var fileControlDiv;
+var currentLayer, currentRegionOrder;
 var drawingManager;
 var mapOverlay;
 
-// jsonObj 如果出错均指向开始的那组数据；361
 // regions:[region1:{elements:[element1, ]}, region2, region3, ]
 // 每个region区域包含多个element单元，区域的layer属性代表不同的层。
 // 如layer=1是第一层，代表城市中的区，区包含多个街道；对街道细分居委，街道就是layer=2的区域，下面有多个街道。
 // ID 是固定分配了，一个region的ID可以等于某个element的ID，这时这个region就是这个element的细化。ID没有0值。
 
 jsonObj = {"currentID":1,"ID":5,
+"file_version":1,
 "mode":[{"strokeColor":"#FF0000", "strokeOpacity":0.8, "strokeWeight": 2, "fillColor":"#FF0000", "fillOpacity": 0.35},
 		{"strokeColor":"#0000FF", "strokeOpacity":0.8, "strokeWeight": 1, "fillColor":"#FFFFFF", "fillOpacity": 0}],
 "zoom":[13,15,17],
@@ -362,9 +361,6 @@ jsonObj = {"currentID":1,"ID":5,
 ]}
 ] // regions
 };
-
-
-defaultCenter = new google.maps.LatLng(23.352564,116.712881);  //point of Shantou information mall
 
 
 function initialize() {
