@@ -636,12 +636,13 @@ function editBlock(event) {
 		Poly = null;
 
 		drawBlockJson(map, jsonObj, currentRegionOrder,elementIndex,false);
-	    document.getElementById("info").style.display="none";
+		$("#info").hide();
 		$("#map_shantou").contextMenu(true);
 		return false;
 	});
 
 	google.maps.event.addDomListenerOnce(document.getElementById('item_deleteBtn'), 'click', function (){
+		var oldID = jsonObj.regions[currentRegionOrder].elements[elementIndex].ID;
 		checkChildID(jsonObj, oldID, currentRegionOrder, elementIndex, false);//BUG***
 		deleBlockJson(map, jsonObj, currentRegionOrder,elementIndex);
 	    document.getElementById("info").style.display="none";
