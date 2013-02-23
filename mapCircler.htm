@@ -86,7 +86,7 @@ function getRegionOrder(jsonObj,ID){
 	else {return k} 
 }
 // 查找指定多边形的位置，用zIndex作为索引值 
-function getCurrentRegionElenemtzIndex(jsonObj,regionOrder,poly){
+function getCurrentRegionElenemtzIndex(jsonObj, regionOrder, poly){
 	for (var i = 0; i < jsonObj.regions[regionOrder].elements.length; i++) {
 		if (poly.zIndex == jsonObj.regions[regionOrder].elements[i].ID) return i;
 	}
@@ -167,7 +167,7 @@ function addSubmit(regionOrder,poly){
 	jsonObj.ID++;
 	poly.zIndex = jsonObj.ID;
 
-	jsonObj.regions[regionOrder].elements.push({"mode":0,"info":$('#item_meta').text(),"name":$('#item_name').val(), "ID":jsonObj.ID});
+	jsonObj.regions[regionOrder].elements.push({"mode":0,"info":$('#item_meta').val(),"name":$('#item_name').val(), "ID":jsonObj.ID});
 		
 	var path = poly.getPath();
 
@@ -252,8 +252,10 @@ function createRegion(map, jsonObj, regionOrder, mode){
 	});
 	outFrame.setMap(map);
 	google.maps.event.addListener(outFrame, "rightclick", rightClickHandler);
-	map.setZoom(jsonObj.zoom[jsonObj.regions[regionOrder].layer]);
+	
 	map.setCenter(regionCenter(jsonObj,regionOrder));
+	map.setZoom(jsonObj.zoom[jsonObj.regions[regionOrder].layer]);
+	
 }
 // 在地图上删除当前区域，但不删除json的内容。
 function deleteCurrentRegion(map){
@@ -312,7 +314,7 @@ function readFile(){
 function saveFile(){ // text, filename	
 	if($.browser.chrome){
 		var filename = prompt('请输入文件名');
-		var $h = $('<div style="position:absolute;z-index:10;top:0;left:0;width:50px;height:30px;"></div>'), $a = $('<a />').attr('href', 'data:text/octet-stream,' + encodeURIComponent($.toJSON(jsonObj))).attr('download', filename+'.mcf').text('拖动或点击').click(function(){$h.remove();});
+		var $h = $('<div style="position:absolute;z-index:10;top:0;left:0;width:50px;height:30px;"></div>'), $a = $('<a />').attr('href', 'data:text/octet-stream,' + encodeURIComponent($.toJSON(jsonObj))).attr('download', filename+'.mcf').text('点击').click(function(){$h.remove();});
 		$h.append($a).appendTo('body');
 		//download 属性定义下载的文件名
 	}else{
@@ -331,18 +333,17 @@ function MapOverlay(map) { this.setMap(map); }
 
 var map, jsonObj;
 var outFrame, Names, Blocks;
-var currentLayer, currentRegionOrder, defaultCenter;
-var fileControlDiv;
+var currentLayer, currentRegionOrder;
 var drawingManager;
 var mapOverlay;
 
-// jsonObj 如果出错均指向开始的那组数据；361
 // regions:[region1:{elements:[element1, ]}, region2, region3, ]
 // 每个region区域包含多个element单元，区域的layer属性代表不同的层。
 // 如layer=1是第一层，代表城市中的区，区包含多个街道；对街道细分居委，街道就是layer=2的区域，下面有多个街道。
 // ID 是固定分配了，一个region的ID可以等于某个element的ID，这时这个region就是这个element的细化。ID没有0值。
 
 jsonObj = {"currentID":1,"ID":5,
+"file_version":1,
 "mode":[{"strokeColor":"#FF0000", "strokeOpacity":0.8, "strokeWeight": 2, "fillColor":"#FF0000", "fillOpacity": 0.35},
 		{"strokeColor":"#0000FF", "strokeOpacity":0.8, "strokeWeight": 1, "fillColor":"#FFFFFF", "fillOpacity": 0}],
 "zoom":[13,15,17],
@@ -357,14 +358,11 @@ jsonObj = {"currentID":1,"ID":5,
 			{"Lat":23.35095971453859,"Lng":116.69940167980963},
 			{"Lat":23.351940999956668,"Lng":116.70566082006837},
 			{"Lat":23.352412,"Lng":116.716227},
-			{"Lat":23.366387667050873,"Lng":116.71590533862309}],
+			{"Lat":23.366387667050873,"Lng":116.71590533862309} ], 
  "elements":[
 ]}
 ] // regions
 };
-
-
-defaultCenter = new google.maps.LatLng(23.352564,116.712881);  //point of Shantou information mall
 
 
 function initialize() {
@@ -397,7 +395,7 @@ function initialize() {
 		poly.setEditable(true);
 
    		$('#item_name').val('');
-    		$('#item_meta').text('');
+    	$('#item_meta').val('');
 		document.getElementById("info").style.display="";
 	
 		google.maps.event.addDomListenerOnce(document.getElementById('item_acceptBtn'), 'click', function (){
@@ -445,7 +443,7 @@ function initialize() {
     $.contextMenu({ 
         selector: '#map_shantou',
         build: function($trigger, e){
-	console.log(e);
+	//console.log(e);
 	return {
 	callback: function(key, options) {
 		var func = {
@@ -508,6 +506,9 @@ function initialize() {
 			$("#map_shantou").contextMenu("hide");
 			$("#map_shantou").contextMenu(false);
 			drawingManager.setDrawingMode("polygon");
+                    },
+                    'frame':function(){
+                    	reurn;
                     }
                 };
             return func[key] && func[key]();//if(func[key]){func();}
@@ -520,7 +521,8 @@ function initialize() {
             "return": {name: "返回上一层"},
             "sep2": "---------",
             "edit": {name: "编辑本单元", icon: "edit"},
-            "new": {name: "新建单元", icon: "add"}
+            "new": {name: "新建单元", icon: "add"},
+            "frame":{name:"编辑边界"}
         }
 	}}
     });
@@ -587,8 +589,9 @@ function createNextRegion(poly){
 	if (elementOrder == null) return;
 	var thisElement = jsonObj.regions[currentRegionOrder].elements[elementOrder];
 	var newlayer = jsonObj.regions[currentRegionOrder].layer	+1;
-	var newRegionOrder = jsonObj.regions.length;	
-	jsonObj.regions.push({"layer":newlayer, "name":thisElement.name, "mode":1,"info":"","ID":thisElement.ID});
+	var newRegionOrder = jsonObj.regions.length;
+	thisElement.mode = 2;	
+	jsonObj.regions.push({"layer":newlayer, "name":thisElement.name, "mode":1,"info":thisElement.info,"ID":thisElement.ID});
 	jsonObj.regions[newRegionOrder].paths = [];
 	for (i=0; i<thisElement.paths.length; i++){
 		jsonObj.regions[newRegionOrder].paths.push(thisElement.paths[i]);
@@ -606,8 +609,8 @@ function editBlock(event) {
 	poly.setEditable(true);
 
     
-    $('#item_name').val(htmlEncode(jsonObj.regions[currentRegionOrder].elements[elementIndex].name));
-    $('#item_meta').text(htmlEncode(jsonObj.regions[currentRegionOrder].elements[elementIndex].info));
+    $('#item_name').val(jsonObj.regions[currentRegionOrder].elements[elementIndex].name);
+    $('#item_meta').val(jsonObj.regions[currentRegionOrder].elements[elementIndex].info);
 	$("#info").show();
 	
 	google.maps.event.addDomListenerOnce(document.getElementById('item_acceptBtn'), 'click', function (){
