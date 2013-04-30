@@ -124,8 +124,12 @@ function drawBlockJson(map, jsonObj, regionOrder, index, mode){
 	google.maps.event.addListener(Block, "rightclick", rightClickHandlerPoly);
 
 	var image = 'http://chart.googleapis.com/chart?chst=d_text_outline&chld=FFFFFF|15|l|000000|_|'+ indexObj.name;
+	var name_latlng = indexObj.name_pos; 
+	if (typeof(name_latlng) == "undefined")
+		name_latlng = PolygonCenter(Block);
+
 	var nameMarker = new google.maps.Marker({
-		position: PolygonCenter(Block),
+		position: name_latlng,
 		map: map,
 		icon: image
 	});
@@ -336,7 +340,6 @@ var outFrame, Names, Blocks;
 var currentLayer, currentRegionOrder;
 var drawingManager;
 var mapOverlay;
-
 // regions:[region1:{elements:[element1, ]}, region2, region3, ]
 // 每个region区域包含多个element单元，区域的layer属性代表不同的层。
 // 如layer=1是第一层，代表城市中的区，区包含多个街道；对街道细分居委，街道就是layer=2的区域，下面有多个街道。
@@ -349,7 +352,7 @@ jsonObj = {"currentID":1,"ID":5,
 "zoom":[13,15,17],
 
 "regions":[
-{"layer":0, "name":"汕头市", "mode":1,"info":"this is first","ID":1,
+{"layer":0, "name":"汕头市", "name_pos":{"Lat":23.366289276203684,"Lng":116.69370043902586}, "mode":1,"info":"this is first","ID":1,
 	"paths": [{"Lat":23.366289276203684,"Lng":116.69370043902586},
 			{"Lat":23.358973538724012,"Lng":116.69387974077995},
 			{"Lat":23.35882802626967,"Lng":116.68959584673303},
@@ -497,7 +500,7 @@ function initialize() {
                     'edit':function(){
 			$("#map_shantou").contextMenu("hide");
 			
-			if (e.eventName == 'polygon'){
+			if (e.eventName == 'polygon') {
 				$("#map_shantou").contextMenu(false);
 				editBlock.call(e.originalThis);
                         }
@@ -628,7 +631,7 @@ function editBlock(event) {
 		checkChildID(jsonObj, oldID, currentRegionOrder, elementIndex, true);
 
 	    document.getElementById("info").style.display="none";
-		$("#map_shantou").contextMenu(true);
+	    $("#map_shantou").contextMenu(true);
 		return false;
 	});
 	// 删除改变的图，重画原图。
