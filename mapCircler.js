@@ -249,37 +249,40 @@ function readFile(){
 		// 如果不支持 HTML5 读取文件
 		var text = prompt('请将文件内容粘贴到这里并按 Enter。','');
 		if(text){
-			jsonObj = JSON.parse(jsontext);
-			deleteCurrentRegion(map);			
-			currentRegionOrder = getRegionOrder(jsonObj, jsonObj.currentID);
-			createRegion(map, jsonObj, currentRegionOrder, true);
+			readJSON(jsontext);
 		}
 	}else{
 		// 使用 HTML5 方式读取
-		var $f = $('<input type="file" />').css('display', 'none');		
-		var change = function(e){ //当选择一个文件的时候（事件 onchange）
-			var file = e.target.files[0]; // FileList object 是一个数组，这里只取第一项
-			console && console.log(file);
-
-			var reader = new FileReader();
-
-			// 读取文件完成时执行 onLoad 事件，先设置事件
-			reader.onload = function(e){
-				if(e.target.readyState == 2){
-					jsonObj = JSON.parse(e.target.result);
-					deleteCurrentRegion(map);
-					currentRegionOrder = getRegionOrder(jsonObj, jsonObj.currentID);
-					createRegion(map, jsonObj, currentRegionOrder, true);
-				}else{ // 出错
-					alert('读取文件时出错：'+ e.target.error);
-				}
-			};
-
-			reader.readAsText(file);
-		};
-		$f.change(change).click();
+		var $f = $('<input type="file" />').css('display', 'none');
+		$f.change(readFileLoader).click();
 	}
+}
 
+function readFileLoader(event){
+	// 当选择一个文件的时候（事件 onchange）
+	var file = event[event.dataTransfer ? 'dataTransfer' : 'target'].files; // FileList object 是一个数组，这里只取第一项
+	if(file.length == 0) return false;
+	var reader = new FileReader();
+
+	// 读取文件完成时执行 onLoad 事件，先设置事件
+	reader.onload = function(event){
+		if(event.target.readyState == 2){
+			readJSON(event.target.result);		
+		}else{ // 出错
+			alert('读取文件时出错：'+ event.target.error);
+		}
+		
+	};
+
+	reader.readAsText(file[0]);
+	event.preventDefault ? event.preventDefault() : event.returnValue = false;
+}
+
+function readJSON(text){
+	jsonObj = JSON.parse(text);
+	deleteCurrentRegion(map);
+	currentRegionOrder = getRegionOrder(jsonObj, jsonObj.currentID);
+	createRegion(map, jsonObj, currentRegionOrder, true);
 }
 
 // 导出文件部分
@@ -491,6 +494,19 @@ function initialize() {
 	google.maps.event.addListener(map, "rightclick", rightClickHandler);
 
 	mapOverlay = new MapOverlay(map);
+
+	// 拖入文件 Handler
+	if(window.FileReader){
+		function noopHandler(event) {
+			event.stopPropagation && event.stopPropagation();
+			event.preventDefault && event.preventDefault();
+			return false;
+		}
+		document.body.addEventListener('drop', readFileLoader, false);
+		document.body.addEventListener('dragover', noopHandler, false);
+		document.body.addEventListener('dragenter', noopHandler, false);
+		document.body.addEventListener('dragexit', noopHandler, false);
+	}
 }
 
 // 右键处理程序，对应在多边形上点击
